@@ -36,44 +36,48 @@ def is_digital_pdf(pdf_path: str, min_text_chars: int = 30, threshold: float = 0
         print(f"Erro na detecção do PDF {pdf_path}: {e}")
         return False
 
-def extract_text_digital_markitdown(pdf_path: str, output_md: str):
+def extract_structured_markitdown(file_path: str, output_md: str):
     """
-    Extrai o texto de um PDF digital usando MarkItDown para preservar a estrutura.
-    Em caso de falha, tenta um fallback simples com PyMuPDF.
+    Extrai o texto de qualquer arquivo suportado (PDF digital, DOCX, XLSX, etc.) 
+    usando MarkItDown para preservar a estrutura.
+    Em caso de falha no PDF, tenta um fallback simples com PyMuPDF.
     """
-    if not os.path.exists(pdf_path):
-        print(f"Erro: Arquivo não encontrado em {pdf_path}")
+    if not os.path.exists(file_path):
+        print(f"Erro: Arquivo não encontrado em {file_path}")
         return
 
     # --- Tentativa 1: MarkItDown ---
     try:
         md_converter = MarkItDown()
-        print(f"Iniciando conversão estruturada de {os.path.basename(pdf_path)} para Markdown (MarkItDown)...")
+        print(f"Iniciando conversão estruturada de {os.path.basename(file_path)} para Markdown (MarkItDown)...")
         
-        result = md_converter.convert(pdf_path)
+        result = md_converter.convert(file_path)
         markdown_content = result.text_content
         
-        if markdown_content and "|---|---" in markdown_content:
-            # Se MarkItDown gerou algum Markdown de tabela, usamos ele.
-            with open(output_md, 'w', encoding='utf-8') as f:
-                f.write(markdown_content)
-            print(f"Extração digital (MarkItDown) concluída: {output_md}")
-            return
+        # Verificação simples para PDFs (se o MarkItDown falhar na tabela, tentamos o fallback)
+        if markdown_content and (file_path.lower().endswith('.pdf') and "|---|---" not in markdown_content):
+            raise Exception("MarkItDown não gerou tabelas ou falhou na estrutura do PDF. Tentando fallback.")
+        
+        with open(output_md, 'w', encoding='utf-8') as f:
+            f.write(markdown_content)
+        print(f"Extração estruturada (MarkItDown) concluída: {output_md}")
+        return
 
     except Exception as e:
-        print(f"Erro ao usar MarkItDown para extração digital: {e}")
+        print(f"Erro ao usar MarkItDown para extração: {e}")
         
-    # --- Tentativa 2: Fallback PyMuPDF com Layout (Melhor para Tabelas Simples) ---
-    print("MarkItDown falhou ou não gerou tabelas. Tentando fallback com PyMuPDF (layout)...")
-    try:
-        doc = fitz.open(pdf_path)
-        with open(output_md, 'w', encoding='utf-8') as f:
-            for i, page in enumerate(doc):
-                # Usamos 'text' com o parâmetro 'layout' para tentar preservar o espaçamento
-                # que pode ajudar a manter a estrutura da tabela.
-                text = page.get_text("text", sort=True) 
-                f.write(f"\n\n## Página {i+1}\n\n{text.strip()}\n")
-        print(f"Extração digital (Fallback PyMuPDF com layout) concluída: {output_md}")
-        
-    except Exception as e_f:
-        print(f"Falha total na extração digital: {e_f}")
+        # --- Tentativa 2: Fallback PyMuPDF (Apenas para PDFs) ---
+        if file_path.lower().endswith('.pdf'):
+            print("Tentando fallback com PyMuPDF (layout) para PDF...")
+            try:
+                doc = fitz.open(file_path)
+                with open(output_md, 'w', encoding='utf-8') as f:
+                    for i, page in enumerate(doc):
+                        # Usamos 'text' com o parâmetro 'layout' para tentar preservar o espaçamento
+                        text = page.get_text("text", sort=True) 
+                        f.write(f"\n\n## Página {i+1}\n\n{text.strip()}\n")
+                print(f"Extração digital (Fallback PyMuPDF com layout) concluída: {output_md}")
+            except Exception as e_f:
+                print(f"Falha total na extração digital de PDF: {e_f}")
+        else:
+            print("Nenhum fallback disponível para este tipo de arquivo.")

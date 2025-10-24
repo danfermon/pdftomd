@@ -7,12 +7,12 @@ from pathlib import Path
 import google.generativeai as genai
 
 # Importar as funções do pipeline
-from pdf_detector import is_digital_pdf, extract_text_digital_markitdown
+from pdf_detector import is_digital_pdf, extract_structured_markitdown # RENOMEADO
 from gcv_ocr import ocr_local_tesseract, extract_ocr_to_markdown_gemini
 
 # --- Configuração da Interface ---
 st.set_page_config(
-    page_title="Processador de Documentos Jurídicos para Markdown",
+    page_title="Processador de Documentos para Markdown do PAULO",
     layout="wide"
 )
 
@@ -71,7 +71,7 @@ def validate_gemini_api_key(api_key: str) -> bool:
     except Exception:
         return False
 
-def process_uploaded_pdf(uploaded_file, gemini_key):
+def process_uploaded_file(uploaded_file, gemini_key): # RENOMEADO
     """
     Salva o arquivo temporariamente e executa o pipeline principal.
     Retorna o caminho do arquivo Markdown gerado.
@@ -84,7 +84,8 @@ def process_uploaded_pdf(uploaded_file, gemini_key):
     with open(pdf_path, "wb") as f:
         f.write(uploaded_file.getbuffer())
     
-    pdf_path_str = str(pdf_path)
+    file_path_str = str(pdf_path)
+    file_extension = pdf_path.suffix.lower()
     
     # 2. Definir Caminho de Saída
     output_dir = Path("markdown_output")
@@ -93,53 +94,53 @@ def process_uploaded_pdf(uploaded_file, gemini_key):
     
     st.info(f"Arquivo de saída será salvo temporariamente em: {output_md_path.resolve()}")
     
-    # 3. Triagem
-    is_digital = is_digital_pdf(pdf_path_str)
+    # --- NOVA LÓGICA DE PROCESSAMENTO ---
     
-    if is_digital:
-        st.success("✅ PDF digital detectado. Usando MarkItDown/Fallback para extração estruturada (Local).")
-        extract_text_digital_markitdown(pdf_path_str, str(output_md_path))
+    if file_extension == '.pdf':
+        # Lógica existente para PDF (Triagem + OCR)
         
-    else:
-        st.warning("⚠️ PDF escaneado detectado. Tentando OCR local (Tesseract) primeiro.")
+        is_digital = is_digital_pdf(file_path_str)
         
-        # TENTATIVA 1: OCR LOCAL (Tesseract)
-        tesseract_success = ocr_local_tesseract(pdf_path_str, str(output_md_path))
-        
-        if tesseract_success:
-            st.success("✅ OCR Local (Tesseract) concluído. Verifique a qualidade.")
+        if is_digital:
+            st.success("✅ PDF digital detectado. Usando MarkItDown/Fallback para extração estruturada (Local).")
+            extract_structured_markitdown(file_path_str, str(output_md_path))
             
-            # Se o usuário forneceu a chave Gemini, damos a opção de upgrade
-            if gemini_key:
-                # Nota: O botão de upgrade deve ser fora da função de processamento para Streamlit
-                # Mas para manter a lógica sequencial, vamos forçar a decisão aqui.
-                # Em uma aplicação Streamlit ideal, isso seria um checkbox/radio button antes do processamento.
+        else:
+            st.warning("⚠️ PDF escaneado detectado. Tentando OCR local (Tesseract) primeiro.")
+            
+            # TENTATIVA 1: OCR LOCAL (Tesseract)
+            tesseract_success = ocr_local_tesseract(file_path_str, str(output_md_path))
+            
+            if tesseract_success:
+                st.success("✅ OCR Local (Tesseract) concluído. Verifique a qualidade.")
                 
-                # Para fins de empacotamento, vamos assumir que se a chave está presente, o usuário
-                # quer a melhor qualidade, a menos que ele explicitamente diga o contrário.
-                # Como não podemos ter input dentro do st.spinner, vamos perguntar antes.
-                
-                # Para simplificar o empacotamento, se a chave está presente, perguntamos:
-                if st.session_state.get('force_gemini', False):
+                if gemini_key and st.session_state.get('force_gemini', False):
                     st.info("Iniciando OCR e estruturação via Gemini (custo/nuvem).")
-                    success = extract_ocr_to_markdown_gemini(pdf_path_str, str(output_md_path), gemini_key)
+                    success = extract_ocr_to_markdown_gemini(file_path_str, str(output_md_path), gemini_key)
                     if success:
                         st.success("✅ Processamento Gemini concluído.")
                     else:
                         st.error("❌ Processamento Gemini falhou (Bloqueio de Conteúdo ou Erro de API).")
-                
             
-        else:
-            st.error("❌ OCR Tesseract falhou.")
-            if gemini_key:
+            elif gemini_key:
+                st.error("❌ OCR Tesseract falhou.")
                 st.info("Tentando OCR e estruturação via Gemini (custo/nuvem) como fallback.")
-                success = extract_ocr_to_markdown_gemini(pdf_path_str, str(output_md_path), gemini_key)
+                success = extract_ocr_to_markdown_gemini(file_path_str, str(output_md_path), gemini_key)
                 if success:
                     st.success("✅ Processamento Gemini concluído.")
                 else:
                     st.error("❌ Processamento Gemini falhou (Bloqueio de Conteúdo ou Erro de API).")
             else:
                 st.error("❌ Não foi possível processar o PDF. Chave Gemini não fornecida para fallback.")
+                    
+    elif file_extension in ['.docx', '.pptx', '.xlsx', '.doc', '.xls']:
+        # NOVA LÓGICA: Extração direta via MarkItDown para outros formatos
+        st.success(f"✅ Arquivo {file_extension} detectado. Extração estruturada via MarkItDown (Local).")
+        extract_structured_markitdown(file_path_str, str(output_md_path)) 
+        
+    else:
+        st.error(f"❌ Formato de arquivo '{file_extension}' não suportado.")
+        return None
 
     # 4. Limpeza e Retorno
     os.remove(pdf_path)
@@ -147,7 +148,7 @@ def process_uploaded_pdf(uploaded_file, gemini_key):
 
 # --- Layout da Aplicação ---
 
-st.title("📄 Processador de Documentos Jurídicos para Markdown")
+st.title("📄 Processador de Documentos para Markdown do Paulo")
 st.markdown("---")
 
 # 1. Configuração da API
@@ -181,7 +182,10 @@ with st.expander("🔑 Configuração da Chave API Gemini (Opcional)", expanded=
 st.markdown("---")
 
 # 2. Upload do Arquivo
-uploaded_file = st.file_uploader("Selecione o arquivo PDF para processamento:", type="pdf")
+uploaded_file = st.file_uploader(
+    "Selecione o arquivo para processamento:", 
+    type=["pdf", "docx", "pptx", "xlsx", "doc", "xls"] # NOVOS FORMATOS
+)
 
 if uploaded_file is not None:
     
@@ -197,11 +201,9 @@ if uploaded_file is not None:
             
         # Executa o pipeline
         with st.spinner("Processando... Isso pode levar alguns minutos para PDFs grandes ou escaneados."):
-            output_path = process_uploaded_pdf(uploaded_file, st.session_state['api_key'])
+            output_path = process_uploaded_file(uploaded_file, st.session_state['api_key'])
             st.session_state['processed_file'] = output_path
             
-        # A mensagem de sucesso/erro final é dada dentro da função process_uploaded_pdf
-
 # 3. Download do Resultado
 if st.session_state['processed_file'] and os.path.exists(st.session_state['processed_file']):
     st.markdown("---")
@@ -245,3 +247,31 @@ if st.session_state['processed_file'] and os.path.exists(st.session_state['proce
 
     # Exibir o caminho de salvamento final
     st.caption(f"Arquivo salvo localmente em: {Path(st.session_state['processed_file']).resolve()}")
+
+
+# --- Inicialização do Streamlit ---
+if __name__ == "__main__":
+    # Se estiver rodando como executável PyInstaller, o servidor é iniciado aqui.
+    if getattr(sys, 'frozen', False):
+        from streamlit.web import server
+        
+        # Configurações de servidor (garantindo que o modo headless esteja ativo)
+        st.cli.get_config_options().set_option('server.headless', True, write=False)
+        st.cli.get_config_options().set_option('server.port', 8501, write=False)
+        
+        print("Iniciando servidor Streamlit...")
+        print("Por favor, abra seu navegador e acesse: http://localhost:8501")
+        
+        try:
+            server.run_app(os.path.abspath(__file__))
+        except SystemExit:
+            pass
+        except Exception as e:
+            print(f"Erro Crítico ao iniciar o Streamlit: {e}")
+            
+        print("\n--- Servidor Streamlit Encerrado ---")
+        print("Pressione ENTER para fechar a janela.")
+        input()
+    else:
+        # Se não estiver empacotado, o usuário deve rodar via 'streamlit run app.py'
+        pass

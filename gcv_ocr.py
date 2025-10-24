@@ -1,16 +1,53 @@
 # C:\pdftomd\gcv_ocr.py
 
-import pytesseract
 import os
+import sys
 import google.generativeai as genai
 from pdf2image import convert_from_path, pdfinfo_from_path
+import pytesseract
 from PIL import Image
 from typing import List
+from pathlib import Path
 
-# --- Configuração do Poppler (Ajuste este caminho se necessário) ---
-# Como o Poppler está no PATH, definimos como None.
-POPPLER_PATH = None 
-# ------------------------------------------------------------------
+# --- Configuração de Caminhos para Executáveis (Poppler e Tesseract) ---
+# O PyInstaller define _MEIPASS para o caminho da pasta temporária de extração.
+BASE_DIR = Path(getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__))))
+BIN_PATH = BASE_DIR / "bin"
+
+# Configuração do Poppler
+# Se o executável pdfinfo.exe estiver na pasta bin, usamos esse caminho.
+POPPLER_PATH = str(BIN_PATH) if (BIN_PATH / "pdfinfo.exe").exists() else None 
+
+# Configuração do Tesseract
+if (BIN_PATH / "tesseract.exe").exists():
+    pytesseract.pytesseract.tesseract_cmd = str(BIN_PATH / "tesseract.exe")
+# ----------------------------------------------------------------------
+
+
+def pdf_to_pil_images(pdf_path: str) -> List[Image.Image]:
+    """
+    Converte um PDF em uma lista de imagens PIL usando pdf2image.
+    Requer a instalação do Poppler no sistema ou no caminho POPPLER_PATH.
+    """
+    pdf_filename = os.path.basename(pdf_path)
+    print(f"Convertendo PDF '{pdf_filename}' em imagens PIL (requer Poppler)...")
+    try:
+        # Tenta obter informações para checar se o PDF é válido
+        pdfinfo_from_path(pdf_path, poppler_path=POPPLER_PATH)
+        
+        # DPI 300 é um bom equilíbrio para OCR de documentos jurídicos
+        images_from_path = convert_from_path(pdf_path, poppler_path=POPPLER_PATH, dpi=300)
+        
+        if not images_from_path:
+            print(f"Nenhuma imagem gerada a partir do PDF '{pdf_filename}'.")
+            return []
+        
+        print(f"{len(images_from_path)} páginas convertidas.")
+        return images_from_path
+    except Exception as e:
+        print(f"Erro Crítico ao converter PDF '{pdf_filename}' para imagens. Verifique a instalação do Poppler e o caminho POPPLER_PATH.")
+        print(f"Detalhe do erro: {e}")
+        return []
 
 def ocr_local_tesseract(pdf_path: str, output_md: str) -> bool:
     """
@@ -27,11 +64,14 @@ def ocr_local_tesseract(pdf_path: str, output_md: str) -> bool:
     full_markdown_content = []
     
     try:
+        # Tesseract precisa saber onde está o tessdata
+        os.environ['TESSDATA_PREFIX'] = str(BIN_PATH / "tessdata")
+        
         for i, img in enumerate(pil_images):
             page_num = i + 1
             print(f"-> Tesseract processando página {page_num}/{len(pil_images)}...")
             
-            # lang='por' para português. dpi 300 já foi usado na conversão.
+            # lang='por' para português.
             text = pytesseract.image_to_string(img, lang='por')
             
             if text.strip():
@@ -57,31 +97,6 @@ def ocr_local_tesseract(pdf_path: str, output_md: str) -> bool:
     except Exception as e:
         print(f"Erro durante o OCR local com Tesseract: {e}")
         return False
-
-def pdf_to_pil_images(pdf_path: str) -> List[Image.Image]:
-    """
-    Converte um PDF em uma lista de imagens PIL usando pdf2image.
-    Requer a instalação do Poppler no sistema.
-    """
-    pdf_filename = os.path.basename(pdf_path)
-    print(f"Convertendo PDF '{pdf_filename}' em imagens PIL (requer Poppler)...")
-    try:
-        # Tenta obter informações para checar se o PDF é válido
-        pdfinfo_from_path(pdf_path, poppler_path=POPPLER_PATH)
-        
-        # DPI 300 é um bom equilíbrio para OCR de documentos jurídicos
-        images_from_path = convert_from_path(pdf_path, poppler_path=POPPLER_PATH, dpi=300)
-        
-        if not images_from_path:
-            print(f"Nenhuma imagem gerada a partir do PDF '{pdf_filename}'.")
-            return []
-        
-        print(f"{len(images_from_path)} páginas convertidas.")
-        return images_from_path
-    except Exception as e:
-        print(f"Erro Crítico ao converter PDF '{pdf_filename}' para imagens. Verifique a instalação do Poppler e o caminho POPPLER_PATH.")
-        print(f"Detalhe do erro: {e}")
-        return []
 
 def extract_ocr_to_markdown_gemini(pdf_path: str, output_md: str, api_key: str):
     """
