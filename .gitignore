@@ -26,3 +26,8 @@ Thumbs.db
 
 # SQLite database (se houver)
 *.sqlite3
+
+# Temporary Application Data
+temp_uploads/
+temp_dropbox/
+markdown_output/
