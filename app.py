@@ -178,9 +178,14 @@ def process_local_file(local_path_str, gemini_key):
     success = run_file_pipeline(str(path), str(output_path), gemini_key)
     return output_path if success else None
 
-def process_batch_directory(directory_path_str: str, gemini_key: str):
+    status_text.success(f"✅ Concluído! Processados: {processed_count}. Erros: {errors_count}.")
+    st.balloons()
+
+def process_batch_directory(directory_path_str: str, gemini_key: str, overwrite: bool = False):
     """
     Varre um diretório recursivamente e converte arquivos suportados.
+    Args:
+        overwrite: Se True, refaz arquivos já existentes. Se False, pula.
     """
     root_dir = Path(directory_path_str).resolve()
     if not root_dir.exists() or not root_dir.is_dir():
@@ -209,6 +214,7 @@ def process_batch_directory(directory_path_str: str, gemini_key: str):
     log_area = st.empty()
     
     processed_count = 0
+    skipped_count = 0 # NOVO
     errors_count = 0
     
     stop_button = st.button("🛑 Parar Processamento em Lote")
@@ -219,20 +225,22 @@ def process_batch_directory(directory_path_str: str, gemini_key: str):
             break
             
         rel_path = file_path.relative_to(root_dir)
-        log_area.code(f"Processando [{i+1}/{len(files_to_process)}]: {rel_path}...")
         
         # Define saída: Nome_MD.md (na mesma pasta)
         output_path = file_path.parent / f"{file_path.stem}MD.md"
         
-        # Pula se já existir (opcional, mas bom pra evitar loop se a extensão for igual, mas aqui a extensão é .md)
-        if output_path.exists():
-            # Opcional: pular ou sobrescrever. Vamos sobrescrever/processar de novo.
-            pass
+        # LÓGICA INCREMENTAL
+        if output_path.exists() and not overwrite:
+            log_area.code(f"⏩ Pulando (Já existe): {rel_path}")
+            skipped_count += 1
+            progress = (i + 1) / len(files_to_process)
+            progress_bar.progress(progress)
+            continue
+
+        log_area.code(f"Processando [{i+1}/{len(files_to_process)}]: {rel_path}...")
 
         try:
-             # Chama Pipeline Silenciosamente (st.empty para não poluir, ou redirecionar logs se possível)
-             # Como o pipeline usa st.success/st.error, isso vai aparecer na tela. 
-             # No modo batch, seria ideal silenciar, mas vamos deixar rolar por enquanto.
+             # Chama Pipeline
              success = run_file_pipeline(str(file_path), str(output_path), gemini_key)
              if success:
                  processed_count += 1
@@ -246,12 +254,14 @@ def process_batch_directory(directory_path_str: str, gemini_key: str):
         progress = (i + 1) / len(files_to_process)
         progress_bar.progress(progress)
     
-    status_text.success(f"✅ Concluído! Processados: {processed_count}. Erros: {errors_count}.")
+    status_text.success(f"✅ Concluído! Processados: {processed_count}. Pulados: {skipped_count}. Erros: {errors_count}.")
     st.balloons()
 
-def process_dropbox_batch(folder_path_str: str, gemini_key: str):
+def process_dropbox_batch(folder_path_str: str, gemini_key: str, overwrite: bool = False):
     """
     Processamento em lote via Dropbox (Download -> Convert -> Upload).
+    Args:
+        overwrite: Se True, refaz arquivos já existentes. Se False, pula.
     """
     token = st.session_state.get('dropbox_token')
     if not token:
@@ -289,6 +299,7 @@ def process_dropbox_batch(folder_path_str: str, gemini_key: str):
     temp_dir.mkdir(exist_ok=True)
     
     processed_count = 0
+    skipped_count = 0 # NOVO
     errors_count = 0
     
     for i, entry in enumerate(file_entries):
@@ -296,19 +307,27 @@ def process_dropbox_batch(folder_path_str: str, gemini_key: str):
             st.warning("Interrompido.")
             break
             
-        log_area.code(f"Baixando e Processando [{i+1}/{len(file_entries)}]: {entry.path_display}...")
-        
-        # Paths
-        local_input = temp_dir / entry.name
         local_output_name = f"{Path(entry.name).stem}MD.md"
-        local_output = temp_dir / local_output_name
-        
-        # Dropbox Output Path (Mesma pasta: /pasta/arquivo.pdf -> /pasta/arquivoMD.md)
+        # Dropbox Output Path
         dropbox_output_path = f"{Path(entry.path_display).parent.as_posix()}/{local_output_name}"
-        # Correção para root path '/' se parent for ''
         if dropbox_output_path.startswith("//"):
              dropbox_output_path = dropbox_output_path[1:]
 
+        # LÓGICA INCREMENTAL (DROPBOX)
+        if not overwrite:
+            # Verifica se existe chamando metadados
+            if dbx.file_exists(dropbox_output_path):
+                 log_area.code(f"⏩ Pulando (Já existe): {entry.path_display}")
+                 skipped_count += 1
+                 progress_bar.progress((i + 1) / len(file_entries))
+                 continue
+
+        log_area.code(f"Baixando e Processando [{i+1}/{len(file_entries)}]: {entry.path_display}...")
+        
+        # Paths do download temporário
+        local_input = temp_dir / entry.name
+        local_output = temp_dir / local_output_name
+        
         try:
             # Download
             if dbx.download_file(entry.path_display, str(local_input)):
@@ -335,7 +354,7 @@ def process_dropbox_batch(folder_path_str: str, gemini_key: str):
 
         progress_bar.progress((i + 1) / len(file_entries))
         
-    st.success(f"✅ Dropbox Batch Concluído! Sucessos: {processed_count}. Erros: {errors_count}.")
+    st.success(f"✅ Dropbox Batch Concluído! Sucessos: {processed_count}. Pulados: {skipped_count}. Erros: {errors_count}.")
     st.balloons()
 
 def process_uploaded_file(uploaded_file, gemini_key): # RENOMEADO
@@ -460,8 +479,15 @@ with tab_dropbox:
         # Instancia Handler
         dbx = DropboxHandler(st.session_state['dropbox_token'])
         
-        # --- Interface de Navegação ---
-        current = st.session_state['dbx_current_path']
+        # 1. VERIFICAÇÃO PREVENTIVA DE CONEXÃO
+        is_connected, msg_connection = dbx.check_connection()
+        
+        if not is_connected:
+            st.warning(f"⚠️ {msg_connection}")
+            st.info("ℹ️ Para corrigir: Gere um novo token no Dropbox Console e atualize o arquivo `.env`.")
+        else:
+            # --- Interface de Navegação (Somente se conectado) ---
+            current = st.session_state['dbx_current_path']
         display_path = current if current else "Raiz (/)"
         
         st.markdown(f"**📂 Pasta Atual:** `{display_path}`")
@@ -546,7 +572,13 @@ if use_gemini:
         st.session_state['api_key'] = None
 else:
     st.session_state['api_key'] = None
-    # st.info("Modo: 100% Local (MarkItDown / Tesseract)")
+
+# Nova Opção: Sobrescrever
+force_overwrite = st.checkbox(
+    "Sobrescrever arquivos Markdown existentes?", 
+    value=False,
+    help="Se desmarcado, o sistema pulará arquivos que já possuem a versão _MD.md na pasta."
+)
 
 st.markdown("---")
 
@@ -626,7 +658,7 @@ if has_input:
                 st.info("Modo Batch: 100% Local")
              
              # Chama a função de lote (ela gerencia seu próprio spinner/progresso)
-             process_batch_directory(selected_batch_dir, st.session_state['api_key'])
+             process_batch_directory(selected_batch_dir, st.session_state['api_key'], overwrite=force_overwrite)
         
         # 4. Dropbox Batch
         elif dropbox_selected_processing is not None:
@@ -636,7 +668,7 @@ if has_input:
                 st.info("Modo Dropbox: 100% Local (Download -> Process -> Upload)")
              
              # Passa o path selecionado (pode ser "" para raiz)
-             process_dropbox_batch(dropbox_selected_processing, st.session_state['api_key'])
+             process_dropbox_batch(dropbox_selected_processing, st.session_state['api_key'], overwrite=force_overwrite)
             
 # 3. Download do Resultado
 if st.session_state['processed_file'] and os.path.exists(st.session_state['processed_file']):

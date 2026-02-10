@@ -69,10 +69,22 @@ class DropboxHandler:
                 process_entries(result.entries)
 
             return sorted(folders, key=lambda x: x.name)
+            return sorted(folders, key=lambda x: x.name)
+        except AuthError:
+            print("Erro de Autenticação ao listar pastas.")
+            return []
         except ApiError as e:
             # Tratamento silencioso ou log
             print(f"Erro ao listar pastas: {e}")
             return []
+
+    def file_exists(self, dropbox_path):
+        """Verifica se um arquivo existe."""
+        try:
+            self.dbx.files_get_metadata(dropbox_path)
+            return True
+        except:
+            return False
 
     def download_file(self, dropbox_path, local_path):
         """Baixa um arquivo do Dropbox para o disco local."""
