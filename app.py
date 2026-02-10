@@ -426,6 +426,9 @@ with tab_local:
             
             if file_path:
                 st.session_state['selected_local_path'] = file_path
+                # Limpa outras seleções
+                st.session_state['selected_batch_dir'] = None
+                st.session_state['dbx_selected_for_processing'] = None
                 st.session_state['processed_file'] = None
                 st.rerun() 
     
@@ -454,6 +457,10 @@ with tab_batch:
             
             if dir_path:
                 st.session_state['selected_batch_dir'] = dir_path
+                # Limpa outras seleções
+                st.session_state['selected_local_path'] = None
+                st.session_state['dbx_selected_for_processing'] = None
+                st.session_state['processed_file'] = None
                 st.rerun()
                 
     with col_txt_batch:
@@ -512,47 +519,52 @@ with tab_dropbox:
         else:
             # --- Interface de Navegação (Somente se conectado) ---
             current = st.session_state['dbx_current_path']
-        display_path = current if current else "Raiz (/)"
+            display_path = current if current else "Raiz (/)"
+            
+            st.markdown(f"**📂 Pasta Atual:** `{display_path}`")
+            
+            # Botões de Ação (Voltar / Selecionar)
+            col_nav_1, col_nav_2 = st.columns([1, 4])
         
-        st.markdown(f"**📂 Pasta Atual:** `{display_path}`")
-        
-        # Botões de Ação (Voltar / Selecionar)
-        col_nav_1, col_nav_2 = st.columns([1, 4])
-        
-        with col_nav_1:
-            if current != "":
-                if st.button("⬆️ Subir Nível", use_container_width=True):
-                    # Remove o último segmento do path
-                    st.session_state['dbx_current_path'] = str(Path(current).parent).replace("\\", "/")
-                    if st.session_state['dbx_current_path'] == ".": 
-                        st.session_state['dbx_current_path'] = ""
-                    st.rerun()
-            else:
-                st.button("⬆️ (Raiz)", disabled=True, use_container_width=True)
-                
-        with col_nav_2:
-             if st.button(f"✅ Selecionar Esta Pasta para Conversão", use_container_width=True, type="primary"):
-                 st.session_state['dbx_selected_for_processing'] = current if current else ""
-                 st.success(f"Pasta selecionada: {display_path}")
-                 st.rerun()
-
-        st.divider()
-        st.caption("Subpastas (clique para entrar):")
-        
-        # Listagem de Subpastas
-        subfolders = dbx.list_subfolders(current)
-        
-        if not subfolders:
-            st.caption("*(Nenhuma subpasta encontrada)*")
-        else:
-            # Grid de pastas para economizar espaço
-            cols = st.columns(3)
-            for idx, folder in enumerate(subfolders):
-                # Distribui entre colunas
-                with cols[idx % 3]:
-                    if st.button(f"📁 {folder.name}", key=f"btn_folder_{folder.id}", use_container_width=True):
-                        st.session_state['dbx_current_path'] = folder.path_display
+            with col_nav_1:
+                if current != "":
+                    if st.button("⬆️ Subir Nível", use_container_width=True):
+                        # Remove o último segmento do path
+                        st.session_state['dbx_current_path'] = str(Path(current).parent).replace("\\", "/")
+                        if st.session_state['dbx_current_path'] == ".": 
+                            st.session_state['dbx_current_path'] = ""
                         st.rerun()
+                else:
+                    st.button("⬆️ (Raiz)", disabled=True, use_container_width=True)
+                    
+            with col_nav_2:
+                 if st.button(f"✅ Selecionar Esta Pasta para Conversão", use_container_width=True, type="primary"):
+                     st.session_state['dbx_selected_for_processing'] = current if current else ""
+                     # Limpa outras seleções para evitar conflito
+                     st.session_state['selected_local_path'] = None
+                     st.session_state['selected_batch_dir'] = None
+                     st.session_state['processed_file'] = None
+                     
+                     st.success(f"Pasta selecionada: {display_path}")
+                     st.rerun()
+
+            st.divider()
+            st.caption("Subpastas (clique para entrar):")
+            
+            # Listagem de Subpastas
+            subfolders = dbx.list_subfolders(current)
+            
+            if not subfolders:
+                st.caption("*(Nenhuma subpasta encontrada)*")
+            else:
+                # Grid de pastas para economizar espaço
+                cols = st.columns(3)
+                for idx, folder in enumerate(subfolders):
+                    # Distribui entre colunas
+                    with cols[idx % 3]:
+                        if st.button(f"📁 {folder.name}", key=f"btn_folder_{folder.id}", use_container_width=True):
+                            st.session_state['dbx_current_path'] = folder.path_display
+                            st.rerun()
 
     # Mostra qual foi selecionada para o "Motor" do app
     selected_dbx = st.session_state.get('dbx_selected_for_processing')
@@ -618,11 +630,6 @@ dropbox_selected_processing = st.session_state.get('dbx_selected_for_processing'
 if selected_local_path:
     has_input = True
     input_name = os.path.basename(selected_local_path)
-elif selected_batch_dir:
-    has_input = True
-    input_name = f"Lote Local: {os.path.basename(selected_batch_dir)}"
-elif selected_batch_dir:
-    has_input = True
     input_name = f"Lote Local: {os.path.basename(selected_batch_dir)}"
 elif dropbox_selected_processing is not None:
     has_input = True
