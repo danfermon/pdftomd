@@ -83,7 +83,7 @@ def ocr_local_tesseract(pdf_path: str, output_md: str) -> bool:
 
         if full_markdown_content:
             final_output = "\n".join(full_markdown_content)
-            with open(output_md, 'w', encoding='utf-8') as f:
+            with open(output_md, 'w', encoding='utf-8-sig') as f:
                 f.write(final_output)
             print(f"OCR Local (Tesseract) concluído e salvo em: {output_md}")
             return True
@@ -173,7 +173,7 @@ def extract_ocr_to_markdown_gemini(pdf_path: str, output_md: str, api_key: str):
     # 4. Salvar o resultado concatenado
     if full_markdown_content:
         final_output = "\n".join(full_markdown_content)
-        with open(output_md, 'w', encoding='utf-8') as f:
+        with open(output_md, 'w', encoding='utf-8-sig') as f:
             f.write(final_output)
             
         print(f"\nOCR e Extração (Gemini) concluídos e salvos em: {output_md}")

@@ -106,7 +106,9 @@ def extract_structured_markitdown(file_path: str, output_md: str):
         # REMOVIDO: A verificação de tabelas estava forçando fallback em documentos de texto puro.
         # Confiamos no MarkItDown para gerar o texto estruturado corretamente.
         
-        with open(output_md, 'w', encoding='utf-8') as f:
+        # Confiamos no MarkItDown para gerar o texto estruturado corretamente.
+        
+        with open(output_md, 'w', encoding='utf-8-sig') as f:
             f.write(markdown_content)
         print(f"Extração estruturada (MarkItDown) concluída: {output_md}")
         
@@ -118,7 +120,7 @@ def extract_structured_markitdown(file_path: str, output_md: str):
             print("Tentando fallback com PyMuPDF (layout) para PDF...")
             try:
                 doc = fitz.open(file_path)
-                with open(output_md, 'w', encoding='utf-8') as f:
+                with open(output_md, 'w', encoding='utf-8-sig') as f:
                     for i, page in enumerate(doc):
                         # Usamos 'text' com o parâmetro 'layout' para tentar preservar o espaçamento
                         text = page.get_text("text", sort=True) 

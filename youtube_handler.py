@@ -88,7 +88,7 @@ def extract_youtube_transcript(url: str, output_md: str) -> bool:
         
         final_content = f"# Transcrição YouTube\n**URL:** {url}\n**Video ID:** {video_id}\n**Info:** {source_infos}\n\n---\n\n{text_formatted}"
         
-        with open(output_md, 'w', encoding='utf-8') as f:
+        with open(output_md, 'w', encoding='utf-8-sig') as f:
             f.write(final_content)
             
         print(f"Sucesso: {source_infos}")
