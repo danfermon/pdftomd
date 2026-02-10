@@ -466,15 +466,39 @@ with tab_batch:
 with tab_dropbox:
     st.info("ℹ️ Navegue pelas pastas e clique em 'Selecionar Esta Pasta' para converter.")
     
-    # Init State para Navegação
+    # Init State
     if 'dbx_current_path' not in st.session_state:
         st.session_state['dbx_current_path'] = "" # Root
     if 'dbx_selected_for_processing' not in st.session_state:
-        st.session_state['dbx_selected_for_processing'] = None # Pasta Escolhida
+        st.session_state['dbx_selected_for_processing'] = None 
+
+    # --- NOVA ÁREA DE CONFIGURAÇÃO DO TOKEN ---
+    with st.expander("🔑 Configurar Token do Dropbox (Clique para expandir)"):
+        st.markdown("""
+        **Como obter um novo token:**
+        1. Acesse [dropbox.com/developers/apps](https://www.dropbox.com/developers/apps).
+        2. Clique no seu App (`carroll_rag` ou similar).
+        3. Vá na aba **Settings**.
+        4. Role até a seção **OAuth 2**.
+        5. Clique no botão **Generate** (abaixo de *Generated access token*).
+        6. Copie o código e cole abaixo.
+        """)
+        
+        new_token = st.text_input(
+            "Cole seu Dropbox Access Token aqui:", 
+            value=st.session_state.get('dropbox_token', ''),
+            type="password",
+            help="Este token deve ter permissões de leitura e escrita (files.content.write)."
+        )
+        
+        if new_token and new_token != st.session_state.get('dropbox_token'):
+            st.session_state['dropbox_token'] = new_token
+            st.success("Token atualizado na sessão! (Reinicie o app se quiser salvar no .env permanentemente)")
+            st.rerun()
 
     # Validação Básica de Token
     if not st.session_state.get('dropbox_token'):
-        st.warning("⚠️ Token do Dropbox não encontrado no .env (DROPBOX_ACCESS_TOKEN).")
+        st.warning("⚠️ Token do Dropbox não encontrado. Por favor, insira acima.")
     else:
         # Instancia Handler
         dbx = DropboxHandler(st.session_state['dropbox_token'])
@@ -484,7 +508,7 @@ with tab_dropbox:
         
         if not is_connected:
             st.warning(f"⚠️ {msg_connection}")
-            st.info("ℹ️ Para corrigir: Gere um novo token no Dropbox Console e atualize o arquivo `.env`.")
+            st.error("O token atual parece inválido ou expirado. Use a área 'Configurar Token' acima para corrigir.")
         else:
             # --- Interface de Navegação (Somente se conectado) ---
             current = st.session_state['dbx_current_path']
