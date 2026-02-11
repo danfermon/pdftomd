@@ -108,7 +108,7 @@ def generate_index_for_folder(folder_path_str: str, api_key: str, recursive: boo
 
         # 3. Gerar PDF se houver dados
         if index_data:
-            pdf_filename = f"_INDEX_CONTENT_{folder_path.name}.pdf"
+            pdf_filename = "_INDEX_CONTENT.pdf"
             pdf_path = folder_path / pdf_filename
             try:
                 create_pdf_report(str(pdf_path), folder_path.name, index_data)
