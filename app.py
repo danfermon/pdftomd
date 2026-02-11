@@ -258,16 +258,6 @@ def process_batch_directory(directory_path_str: str, gemini_key: str, overwrite:
     status_text.success(f"✅ Concluído! Processados: {processed_count}. Pulados: {skipped_count}. Erros: {errors_count}.")
     st.balloons()
 
-    # --- RLM INDEX GENERATION (LOCAL) ---
-    st.markdown("---")
-    st.subheader("📚 Índice Semântico (RLM)")
-    if st.button("🧠 Gerar Índice PDF desta Pasta", key="btn_index_local"):
-        if not gemini_key:
-            st.error("⚠️ É necessário configurar a Chave API Gemini para usar o RLM.")
-        else:
-            with st.spinner("🧠 Analisando arquivos e gerando índice com RLM... (Isso pode demorar)"):
-                generate_index_for_folder(directory_path_str, gemini_key, recursive=True)
-            st.success("✅ Índice Gerado com Sucesso! Verifique os arquivos '_INDEX_CONTENT*.pdf' na pasta.")
 
 def process_dropbox_batch(folder_path_str: str, gemini_key: str, overwrite: bool = False):
     """
@@ -369,69 +359,6 @@ def process_dropbox_batch(folder_path_str: str, gemini_key: str, overwrite: bool
     st.success(f"✅ Dropbox Batch Concluído! Sucessos: {processed_count}. Pulados: {skipped_count}. Erros: {errors_count}.")
     st.balloons()
 
-    # --- RLM INDEX GENERATION (DROPBOX) ---
-    st.markdown("---")
-    st.subheader("📚 Índice Semântico (RLM)")
-    if st.button("🧠 Gerar Índice PDF desta Pasta (Dropbox)", key="btn_index_dbx"):
-        if not gemini_key:
-            st.error("⚠️ É necessário configurar a Chave API Gemini para usar o RLM.")
-        else:
-            # Lógica Específica para Dropbox: Baixar MDs -> Gerar Index -> Upload PDF
-            with st.spinner("🧠 Preparando arquivos do Dropbox para indexação..."):
-                # 1. Criar temp dir para indexação
-                index_temp_dir = Path("temp_dropbox_index")
-                index_temp_dir.mkdir(exist_ok=True)
-                
-                # 2. Listar apenas MDs
-                md_entries = dbx.list_files_recursive(folder_path_str, {'.md'})
-                
-                if not md_entries:
-                    st.warning("Nenhum arquivo Markdown encontrado para indexar.")
-                else:
-                    downloaded_count = 0
-                    for entry in md_entries:
-                        # Mantém estrutura relativa (remove folder_path_str do inicio)
-                        # Ex: /Raiz/PastaA/file.md -> PastaA/file.md (se folder_path_str=/Raiz)
-                        if folder_path_str:
-                             rel_path = entry.path_display.replace(folder_path_str, "", 1).lstrip("/")
-                        else:
-                             rel_path = entry.path_display.lstrip("/")
-                             
-                        local_dest = index_temp_dir / rel_path
-                        local_dest.parent.mkdir(parents=True, exist_ok=True)
-                        
-                        dbx.download_file(entry.path_display, str(local_dest))
-                        downloaded_count += 1
-                    
-                    st.info(f"Baixados {downloaded_count} arquivos para análise.")
-                    
-                    # 3. Gerar Índice Localmente
-                    with st.spinner("🧠 RLM processando conteúdo e gerando PDF..."):
-                        generate_index_for_folder(str(index_temp_dir), gemini_key, recursive=True)
-                    
-                    # 4. Upload dos PDFs gerados
-                    pdf_files = list(index_temp_dir.rglob("_INDEX_CONTENT*.pdf"))
-                    if not pdf_files:
-                        st.error("Nenhum índice foi gerado. (Verifique se há arquivos .md válidos)")
-                    else:
-                        uploaded_indexes = 0
-                        for pdf in pdf_files:
-                            # Reconstrói caminho remoto
-                            rel_pdf_path = pdf.relative_to(index_temp_dir)
-                            # Prefixo base do dropbox
-                            base = folder_path_str if folder_path_str != "" else ""
-                            remote_pdf_path = f"{base}/{rel_pdf_path.as_posix()}"
-                            if remote_pdf_path.startswith("//"): remote_pdf_path = remote_pdf_path[1:]
-                            
-                            st.toast(f"⬆️ Enviando: {rel_pdf_path.name}")
-                            dbx.upload_file(str(pdf), remote_pdf_path)
-                            uploaded_indexes += 1
-                        
-                        st.success(f"✅ {uploaded_indexes} Índices Semânticos enviados para o Dropbox!")
-                    
-                    # Limpeza (Opcional, pode manter para debug ou limpar)
-                    import shutil
-                    shutil.rmtree(index_temp_dir, ignore_errors=True)
 
 def process_uploaded_file(uploaded_file, gemini_key): # RENOMEADO
     """
@@ -545,6 +472,19 @@ with tab_batch:
             st.code(current_dir, language=None)
         else:
             st.info("Nenhuma pasta selecionada.", icon="ℹ️")
+        
+        # --- RLM INDEX GENERATION (LOCAL) ---
+        if current_dir:
+            st.divider()
+            st.subheader("📚 Índice Semântico (RLM)")
+            if st.button("🧠 Gerar Índice PDF desta Pasta", key="btn_index_local_main"):
+                gemini_key = st.session_state.get('api_key')
+                if not gemini_key:
+                    st.error("⚠️ É necessário configurar a Chave API Gemini para usar o RLM.")
+                else:
+                    with st.spinner("🧠 Analisando arquivos e gerando índice com RLM... (Isso pode demorar)"):
+                        generate_index_for_folder(current_dir, gemini_key, recursive=True)
+                    st.success("✅ Índice Gerado com Sucesso! Verifique os arquivos '_INDEX_CONTENT*.pdf' na pasta.")
 
 with tab_dropbox:
     st.info("ℹ️ Navegue pelas pastas e clique em 'Selecionar Esta Pasta' para converter.")
@@ -646,6 +586,70 @@ with tab_dropbox:
     selected_dbx = st.session_state.get('dbx_selected_for_processing')
     if selected_dbx is not None:
          st.success(f"🎯 **Pronto para processar:** {selected_dbx if selected_dbx else 'Raiz (/)'}")
+         
+         # --- RLM INDEX GENERATION (DROPBOX) ---
+         st.divider()
+         st.subheader("📚 Índice Semântico (RLM)")
+         
+         if st.button("🧠 Gerar Índice PDF (Dropbox)", key="btn_index_dbx_main"):
+            gemini_key = st.session_state.get('api_key')
+            if not gemini_key:
+                st.error("⚠️ É necessário configurar a Chave API Gemini para usar o RLM.")
+            else:
+                # Lógica Específica para Dropbox
+                dest_path = selected_dbx if selected_dbx else ""
+                with st.spinner("🧠 Preparando arquivos do Dropbox para indexação..."):
+                    # 1. Criar temp dir
+                    index_temp_dir = Path("temp_dropbox_index")
+                    index_temp_dir.mkdir(exist_ok=True)
+                    
+                    # 2. Listar apenas MDs
+                    md_entries = dbx.list_files_recursive(dest_path, {'.md'})
+                    
+                    if not md_entries:
+                        st.warning("Nenhum arquivo Markdown encontrado para indexar.")
+                    else:
+                        downloaded_count = 0
+                        for entry in md_entries:
+                            # Mantém estrutura relativa
+                            if dest_path:
+                                 rel_path = entry.path_display.replace(dest_path, "", 1).lstrip("/")
+                            else:
+                                 rel_path = entry.path_display.lstrip("/")
+                                 
+                            local_dest = index_temp_dir / rel_path
+                            local_dest.parent.mkdir(parents=True, exist_ok=True)
+                            
+                            dbx.download_file(entry.path_display, str(local_dest))
+                            downloaded_count += 1
+                        
+                        st.info(f"Baixados {downloaded_count} arquivos para análise.")
+                        
+                        # 3. Gerar Índice
+                        with st.spinner("🧠 RLM processando e gerando PDF..."):
+                            generate_index_for_folder(str(index_temp_dir), gemini_key, recursive=True)
+                        
+                        # 4. Upload
+                        pdf_files = list(index_temp_dir.rglob("_INDEX_CONTENT*.pdf"))
+                        if not pdf_files:
+                            st.error("Nenhum índice gerado. (Verifique logs/arquivos MD)")
+                        else:
+                            uploaded_indexes = 0
+                            for pdf in pdf_files:
+                                rel_pdf_path = pdf.relative_to(index_temp_dir)
+                                base = dest_path if dest_path != "" else ""
+                                remote_pdf_path = f"{base}/{rel_pdf_path.as_posix()}"
+                                if remote_pdf_path.startswith("//"): remote_pdf_path = remote_pdf_path[1:]
+                                
+                                st.toast(f"⬆️ Enviando: {rel_pdf_path.name}")
+                                dbx.upload_file(str(pdf), remote_pdf_path)
+                                uploaded_indexes += 1
+                            
+                            st.success(f"✅ {uploaded_indexes} Índices Semânticos enviados para o Dropbox!")
+                        
+                        # Limpeza
+                        import shutil
+                        shutil.rmtree(index_temp_dir, ignore_errors=True)
 
 with tab_youtube:
     st.caption("ℹ️ Transcrição salva na pasta `markdown_output`.")

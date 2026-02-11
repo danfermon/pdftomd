@@ -54,32 +54,47 @@ def generate_index_for_folder(folder_path_str: str, api_key: str, recursive: boo
                     1. Provide a concise summary of the document (max 3 sentences).
                     2. Extract 5 relevant keywords or tags.
                     
-                    Format your answer EXACTLY like this:
-                    Summary: [Your summary here]
-                    Keywords: [Tag1, Tag2, Tag3, Tag4, Tag5]
+                    RETURN ONLY VALID JSON with the following structure:
+                    {{
+                        "summary": "Your summary here",
+                        "keywords": ["Tag1", "Tag2", "Tag3", "Tag4", "Tag5"]
+                    }}
                     """
                     
                     # Call RLM
                     analysis = rlm.completion(context=truncated_content, query=query)
                     
-                    # Parse simples
+                    # Parse JSON Robustamente
+                    import json
+                    import re
+                    
                     summary = "Resumo não disponível."
                     keywords = "Tags não disponíveis."
-                    
-                    if "Summary:" in analysis:
-                        # Tenta extrair Summary e Keywords
-                        try:
-                            parts = analysis.split("Keywords:")
-                            summary_part = parts[0].replace("Summary:", "").strip()
-                            keywords_part = parts[1].strip() if len(parts) > 1 else ""
+
+                    try:
+                        # Tenta limpar markdown de código se houver (```json ... ```)
+                        cleaned_analysis = analysis.strip()
+                        if "```" in cleaned_analysis:
+                            # Remove blocos de código
+                            cleaned_analysis = re.sub(r"```json\s*", "", cleaned_analysis)
+                            cleaned_analysis = re.sub(r"```", "", cleaned_analysis)
+                        
+                        data = json.loads(cleaned_analysis)
+                        summary = data.get("summary", summary)
+                        keywords_list = data.get("keywords", [])
+                        if isinstance(keywords_list, list):
+                            keywords = ", ".join(keywords_list)
+                        else:
+                            keywords = str(keywords_list)
                             
-                            summary = summary_part.replace("*", "") # Remove markdown bold
-                            keywords = keywords_part.replace("[", "").replace("]", "")
-                        except:
-                            summary = analysis[:200] + "..."
-                    else:
-                        summary = analysis[:300].replace("\n", " ") + "..." # Fallback
-                    
+                    except json.JSONDecodeError:
+                        print(f"  ⚠️ Erro ao decodificar JSON para {md_file.name}. Tentando fallback texto.")
+                        # Fallback: Tenta pegar texto cru se o JSON falhar muito feio
+                        summary = analysis[:300].replace("\n", " ").strip() + "..."
+                    except Exception as e_parse:
+                         print(f"  ⚠️ Erro de parse genérico: {e_parse}")
+                         summary = analysis[:300].replace("\n", " ") + "..."
+
                     index_data.append({
                         "filename": md_file.name,
                         "summary": summary,
