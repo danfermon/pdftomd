@@ -5,8 +5,9 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import cm
 from reportlab.lib import colors
-# Import RLM
-from rlm.rlm_repl import RLM_REPL
+from reportlab.lib import colors
+# Use GeminiClient diretamente para maior robustez na sumarização simples
+from rlm.utils.llm import GeminiClient
 
 def generate_index_for_folder(folder_path_str: str, api_key: str, recursive: bool = True):
     """
@@ -32,13 +33,12 @@ def generate_index_for_folder(folder_path_str: str, api_key: str, recursive: boo
     
     # 2. Processar Arquivos
     if md_files:
-        # Inicializa RLM (Gemini)
-        # Usamos flash para velocidade, ou pro para qualidade se necessário.
+        # Inicializa Gemini Client Diretamente (Bypass RLM REPL complexo)
         try:
-            rlm = RLM_REPL(model="gemini-2.0-flash", enable_logging=True)
+            client = GeminiClient(api_key=api_key, model="gemini-2.0-flash")
             
             for md_file in md_files:
-                print(f"  📖 Analisando com RLM: {md_file.name}")
+                print(f"  📖 Analisando: {md_file.name}")
                 try:
                     with open(md_file, 'r', encoding='utf-8-sig') as f:
                         content = f.read()
@@ -46,23 +46,38 @@ def generate_index_for_folder(folder_path_str: str, api_key: str, recursive: boo
                     if not content.strip():
                         continue
 
-                    # Otimização: Se for muito grande, pegamos os primeiros 30k chars para o índice
+                    # Otimização: Se for muito grande, pegamos os primeiros 30k chars
                     truncated_content = content[:30000] 
                     
-                    query = f"""
-                    Analyze the following text from file '{md_file.name}'.
-                    1. Provide a concise summary of the document (max 3 sentences).
-                    2. Extract 5 relevant keywords or tags.
+                    system_prompt = """You are a helpful assistant that analyzes documents.
+                    Your Goal: Provide a concise summary and relevant keywords for the given document content.
                     
-                    RETURN ONLY VALID JSON with the following structure:
+                    Output Format: STRICT JSON with keys "summary" and "keywords".
+                    Do not include markdown formatting like ```json ... ``` in the response if possible, just the raw JSON string.
+                    """
+                    
+                    user_prompt = f"""
+                    Analyze the following text from file '{md_file.name}':
+                    
+                    --- BEGIN TEXT ---
+                    {truncated_content}
+                    --- END TEXT ---
+
+                    1. Provide a concise summary (max 3 sentences).
+                    2. Extract 5 relevant keywords.
+                    
+                    RETURN ONLY VALID JSON:
                     {{
                         "summary": "Your summary here",
                         "keywords": ["Tag1", "Tag2", "Tag3", "Tag4", "Tag5"]
                     }}
                     """
                     
-                    # Call RLM
-                    analysis = rlm.completion(context=truncated_content, query=query)
+                    # Direct Call
+                    analysis = client.completion([
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ])
                     
                     # Parse JSON Robustamente
                     import json
@@ -103,8 +118,10 @@ def generate_index_for_folder(folder_path_str: str, api_key: str, recursive: boo
                     
                 except Exception as e:
                     print(f"  ❌ Erro ao analisar {md_file.name}: {e}")
+                except Exception as e:
+                    print(f"  ❌ Erro ao analisar {md_file.name}: {e}")
         except Exception as e_init:
-            print(f"Erro ao inicializar RLM: {e_init}")
+             print(f"Erro ao inicializar Gemini Client: {e_init}")
 
         # 3. Gerar PDF se houver dados
         if index_data:
