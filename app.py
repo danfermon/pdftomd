@@ -709,7 +709,9 @@ dropbox_selected_processing = st.session_state.get('dbx_selected_for_processing'
 
 if selected_local_path:
     has_input = True
-    input_name = os.path.basename(selected_local_path)
+    input_name = f"Arquivo Local: {os.path.basename(selected_local_path)}"
+elif selected_batch_dir:
+    has_input = True
     input_name = f"Lote Local: {os.path.basename(selected_batch_dir)}"
 elif dropbox_selected_processing is not None:
     has_input = True
@@ -717,7 +719,7 @@ elif dropbox_selected_processing is not None:
     input_name = f"Dropbox: {display_name}"
 elif youtube_url:
     has_input = True
-    input_name = youtube_url
+    input_name = f"YouTube: {youtube_url}"
 
 if has_input:
     
