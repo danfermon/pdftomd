@@ -412,20 +412,25 @@ with tab_local:
     
     with col_btn:
         if st.button("📂 Selecionar Arquivo", use_container_width=True):
-            root = tk.Tk()
-            root.withdraw()
-            root.wm_attributes('-topmost', 1) 
-            
-            file_path = filedialog.askopenfilename(
-                title="Selecione um arquivo para converter",
-                filetypes=[
-                    ("Todos os Suportados", "*.pdf *.docx *.pptx *.xlsx *.doc *.xls *.csv *.json *.xml *.html *.zip *.mp3 *.wav *.jpg *.png *.epub"),
-                    ("Documentos PDF", "*.pdf"),
-                    ("Todos os Arquivos", "*.*")
-                ]
-            )
-            
-            root.destroy()
+            import subprocess, sys
+            code = """
+import tkinter as tk
+from tkinter import filedialog
+root = tk.Tk()
+root.withdraw()
+root.wm_attributes('-topmost', 1)
+path = filedialog.askopenfilename(
+    title='Selecione um arquivo para converter',
+    filetypes=[
+        ('Todos os Suportados', '*.pdf *.docx *.pptx *.xlsx *.doc *.xls *.csv *.json *.xml *.html *.zip *.mp3 *.wav *.jpg *.png *.epub'),
+        ('Documentos PDF', '*.pdf'),
+        ('Todos os Arquivos', '*.*')
+    ]
+)
+print(path)
+"""
+            result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+            file_path = result.stdout.strip()
             
             if file_path:
                 st.session_state['selected_local_path'] = file_path
@@ -450,13 +455,18 @@ with tab_batch:
     
     with col_btn_batch:
         if st.button("📂 Selecionar Pasta", use_container_width=True):
-            root = tk.Tk()
-            root.withdraw()
-            root.wm_attributes('-topmost', 1)
-            
-            dir_path = filedialog.askdirectory(title="Selecione a Pasta para Processamento em Lote")
-            
-            root.destroy()
+            import subprocess, sys
+            code = """
+import tkinter as tk
+from tkinter import filedialog
+root = tk.Tk()
+root.withdraw()
+root.wm_attributes('-topmost', 1)
+path = filedialog.askdirectory(title='Selecione a Pasta para Processamento em Lote')
+print(path)
+"""
+            result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+            dir_path = result.stdout.strip()
             
             if dir_path:
                 st.session_state['selected_batch_dir'] = dir_path
