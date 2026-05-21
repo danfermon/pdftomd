@@ -174,12 +174,12 @@ git --version
 Vamos criar a pasta do projeto diretamente no disco `C:\`. Cole os três comandos abaixo **um de cada vez**, apertando `Enter` após cada um:
 
 ```powershell
-# Ir para o disco C:
-cd C:\
+# Ir para a pasta de projetos no disco D:
+cd D:\2026_projects\
 ```
 
 ```powershell
-# Baixar o código (isso cria a pasta C:\pdftomd automaticamente)
+# Baixar o código (isso cria a pasta D:\2026_projects\pdftomd automaticamente)
 git clone https://github.com/danfermon/pdftomd.git
 ```
 
@@ -198,7 +198,7 @@ cd pdftomd
 > ❌ **Se aparecer erro "destination path 'pdftomd' already exists":**
 > A pasta já foi baixada antes. Execute o comando abaixo para entrar nela diretamente:
 > ```powershell
-> cd C:\pdftomd
+> cd D:\2026_projects\pdftomd
 > ```
 
 ---
@@ -226,7 +226,7 @@ Agora **ative** o ambiente virtual:
 
 > ✅ **Como saber se deu certo:** O início da linha de comando vai mostrar **`(venv)`** em verde, assim:
 > ```
-> (venv) PS C:\pdftomd>
+> (venv) PS D:\2026_projects\pdftomd>
 > ```
 
 > ❌ **Se aparecer erro "cannot be loaded because running scripts is disabled":**
@@ -259,7 +259,7 @@ pip install -r requirements.txt
 > ```powershell
 > pwd
 > ```
-> O resultado deve ser `C:\pdftomd`. Se não for, execute `cd C:\pdftomd` e tente novamente.
+> O resultado deve ser `D:\2026_projects\pdftomd`. Se não for, execute `cd D:\2026_projects\pdftomd` e tente novamente.
 
 > ❌ **Se aparecer erro durante a instalação de alguma biblioteca específica:**
 > Anote o nome da biblioteca que falhou e execute individualmente:
@@ -288,7 +288,7 @@ streamlit run app.py
 
 > ❌ **Se aparecer erro "streamlit: command not found":** O ambiente virtual pode ter se desativado. Execute:
 > ```powershell
-> cd C:\pdftomd
+> cd D:\2026_projects\pdftomd
 > .\venv\Scripts\activate
 > streamlit run app.py
 > ```
@@ -311,7 +311,7 @@ Você tem **duas opções**:
 ### Opção B – Via Arquivo `.env` *(Recomendado para uso diário)*
 
 1. Abra o **Explorador de Arquivos** (atalho: `Win + E`)
-2. Navegue até `C:\pdftomd`
+2. Navegue até `D:\2026_projects\pdftomd`
 3. Clique com o botão direito em uma área vazia da pasta → **Novo** → **Documento de Texto**
 4. Nomeie o arquivo como `.env` *(com o ponto no início)*
    > ⚠️ Se o Windows não deixar criar um arquivo começando com ponto, crie como `env.txt`, abra-o, e ao salvar use **"Salvar como"**, escolha "Todos os arquivos (*.*)" no tipo e nomeie como `.env`
@@ -334,15 +334,15 @@ Após a configuração inicial, para abrir o sistema basta:
 2. Executar os três comandos abaixo:
 
 ```powershell
-cd C:\pdftomd
+cd D:\2026_projects\pdftomd
 .\venv\Scripts\activate
 streamlit run app.py
 ```
 
-> 💡 **Dica:** Você pode criar um atalho com esses comandos. Crie um arquivo de texto em `C:\pdftomd` chamado `iniciar.bat` com o seguinte conteúdo:
+> 💡 **Dica:** Você pode criar um atalho com esses comandos. Crie um arquivo de texto em `D:\2026_projects\pdftomd` chamado `iniciar.bat` com o seguinte conteúdo:
 > ```bat
 > @echo off
-> cd /d C:\pdftomd
+> cd /d D:\2026_projects\pdftomd
 > call .\venv\Scripts\activate
 > streamlit run app.py
 > ```

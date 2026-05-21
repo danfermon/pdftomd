@@ -1,0 +1,26 @@
+services:
+  pdftomd:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: pdftomd-app:latest
+    container_name: pdftomd_app
+    ports:
+      - "8501:8501"
+    environment:
+      # Caminho do banco persistente no container
+      - USERS_DB_PATH=/data/users.db
+      # Carrega chaves das variáveis de ambiente do host se fornecidas
+      - GOOGLE_GEMINI_API_KEY=${GOOGLE_GEMINI_API_KEY:-}
+      # MANTIDO VAZIO para governança e segurança (cada usuário informa seu token na sessão)
+      - DROPBOX_ACCESS_TOKEN=
+    volumes:
+      # Volume nomeado para persistir o banco de dados de usuários de forma segura
+      - pdf_user_data:/data
+      # Volume local (opcional) para acessar saídas se o usuário rodar em VPS de forma manual
+      - ./markdown_output:/app/markdown_output
+    restart: unless-stopped
+
+volumes:
+  pdf_user_data:
+    driver: local

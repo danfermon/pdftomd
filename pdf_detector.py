@@ -1,5 +1,4 @@
-
-# C:\pdftomd\pdf_detector.py
+# pdf_detector.py
 
 import fitz # PyMuPDF
 from markitdown import MarkItDown

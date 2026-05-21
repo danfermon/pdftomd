@@ -1,14 +1,21 @@
-# C:\pdftomd\app.py
+# app.py
 
 import streamlit as st
 import os
 import sys
 from pathlib import Path
-import tkinter as tk
-from tkinter import filedialog
+try:
+    import tkinter as tk
+    from tkinter import filedialog
+    HAS_TKINTER = True
+except (ImportError, ModuleNotFoundError):
+    HAS_TKINTER = False
+
+IS_HEADLESS = os.name != 'nt' or os.getenv("RUNNING_IN_DOCKER") == "true" or not HAS_TKINTER
 import google.generativeai as genai
 from dotenv import load_dotenv
 from dropbox_handler import DropboxHandler
+import auth # IMPORTADO
 
 # Importar as funções do pipeline
 from pdf_detector import is_digital_pdf, extract_structured_markitdown # RENOMEADO
@@ -21,6 +28,170 @@ st.set_page_config(
     page_title="Processador de Documentos para Markdown",
     layout="wide"
 )
+
+# Inicializa o banco de dados SQLite de usuários
+auth.init_db()
+
+# --- Inicialização de Estado de Autenticação ---
+if 'authenticated' not in st.session_state:
+    st.session_state['authenticated'] = False
+if 'user_id' not in st.session_state:
+    st.session_state['user_id'] = None
+if 'username' not in st.session_state:
+    st.session_state['username'] = ""
+if 'is_admin' not in st.session_state:
+    st.session_state['is_admin'] = False
+if 'needs_password_change' not in st.session_state:
+    st.session_state['needs_password_change'] = False
+
+def show_login_screen():
+    # Centraliza o card de login na tela com estilo moderno (Glassmorphism)
+    st.markdown("""
+        <style>
+        .login-wrapper {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding-top: 50px;
+        }
+        .login-container {
+            width: 450px;
+            padding: 40px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.2);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: center;
+        }
+        .login-title {
+            font-size: 36px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #1E90FF 0%, #3CB371 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+        .login-subtitle {
+            font-size: 14px;
+            color: #888;
+            margin-bottom: 24px;
+        }
+        /* Customizar os campos de texto no login */
+        div[data-testid="stForm"] {
+            border: none !important;
+            padding: 0 !important;
+            background-color: transparent !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    st.markdown('<div class="login-wrapper">', unsafe_allow_html=True)
+    st.markdown('<div class="login-container">', unsafe_allow_html=True)
+    st.markdown('<h1 class="login-title">📄 PDFtoMD</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="login-subtitle">Sistema Seguro de Processamento de Documentos</p>', unsafe_allow_html=True)
+    
+    with st.form("login_form", clear_on_submit=False):
+        username = st.text_input("Usuário", placeholder="Digite seu usuário...")
+        password = st.text_input("Senha", type="password", placeholder="Digite sua senha...")
+        submit_button = st.form_submit_button("Entrar", use_container_width=True)
+        
+        if submit_button:
+            user = auth.authenticate_user(username, password)
+            if user:
+                st.session_state['authenticated'] = True
+                st.session_state['user_id'] = user['id']
+                st.session_state['username'] = user['username']
+                st.session_state['is_admin'] = user['is_admin']
+                st.session_state['needs_password_change'] = user['needs_password_change']
+                st.success("Login efetuado com sucesso! Redirecionando...")
+                st.rerun()
+            else:
+                st.error("Usuário ou senha inválidos. Tente novamente.")
+                
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+def show_change_password_on_first_login_screen():
+    st.markdown("""
+        <style>
+        .change-pwd-wrapper {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding-top: 50px;
+        }
+        .change-pwd-container {
+            width: 480px;
+            padding: 40px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.2);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: center;
+        }
+        .change-pwd-title {
+            font-size: 28px;
+            font-weight: 800;
+            color: #FF8C00;
+            margin-bottom: 8px;
+        }
+        .change-pwd-subtitle {
+            font-size: 14px;
+            color: #ccc;
+            margin-bottom: 24px;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    st.markdown('<div class="change-pwd-wrapper">', unsafe_allow_html=True)
+    st.markdown('<div class="change-pwd-container">', unsafe_allow_html=True)
+    st.markdown('<h2 class="change-pwd-title">🔒 Alteração de Senha Obrigatória</h2>', unsafe_allow_html=True)
+    st.markdown('<p class="change-pwd-subtitle">Este é o seu primeiro acesso ou sua senha foi resetada. Por questões de segurança, você deve escolher uma senha forte.</p>', unsafe_allow_html=True)
+    
+    with st.form("forced_change_pwd_form", clear_on_submit=False):
+        new_pwd = st.text_input("Nova Senha", type="password", placeholder="Digite uma nova senha...")
+        confirm_pwd = st.text_input("Confirme a Nova Senha", type="password", placeholder="Repita a nova senha...")
+        submit_btn = st.form_submit_button("Alterar Senha e Entrar", use_container_width=True)
+        
+        if submit_btn:
+            if not new_pwd:
+                st.error("A nova senha não pode estar em branco.")
+            elif len(new_pwd) < 6:
+                st.error("A senha deve ter pelo menos 6 caracteres por segurança.")
+            elif new_pwd == "123456":
+                st.error("A nova senha não pode ser a senha padrão '123456'. Defina uma senha mais segura.")
+            elif new_pwd != confirm_pwd:
+                st.error("As senhas digitadas não coincidem. Tente novamente.")
+            else:
+                user_id = st.session_state.get('user_id')
+                if user_id:
+                    success, msg = auth.change_password_on_first_login(user_id, new_pwd)
+                    if success:
+                        st.session_state['needs_password_change'] = False
+                        st.success("Senha alterada com sucesso! Acessando o sistema...")
+                        st.rerun()
+                    else:
+                        st.error(msg)
+                else:
+                    st.error("Erro interno do sistema. Por favor, tente fazer login novamente.")
+                    st.session_state['authenticated'] = False
+                    st.rerun()
+                    
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+if not st.session_state['authenticated']:
+    show_login_screen()
+    st.stop()
+
+if st.session_state.get('needs_password_change', False):
+    show_change_password_on_first_login_screen()
+    st.stop()
+
 
 # --- Estilo CSS para melhor visualização ---
 st.markdown("""
@@ -72,6 +243,8 @@ if 'dropbox_token' not in st.session_state:
 
 if 'processed_file' not in st.session_state:
     st.session_state['processed_file'] = None
+if 'uploaded_file' not in st.session_state:
+    st.session_state['uploaded_file'] = None
 if 'reset_counter' not in st.session_state:
     st.session_state['reset_counter'] = 0
 
@@ -179,8 +352,39 @@ def process_local_file(local_path_str, gemini_key):
     success = run_file_pipeline(str(path), str(output_path), gemini_key)
     return output_path if success else None
 
-    status_text.success(f"✅ Concluído! Processados: {processed_count}. Erros: {errors_count}.")
-    st.balloons()
+def process_uploaded_file(uploaded_file, gemini_key):
+    """
+    Salva o arquivo enviado via web temporariamente, processa-o e gera o Markdown de saída na pasta markdown_output.
+    Retorna o caminho do arquivo Markdown gerado.
+    """
+    # 1. Cria pasta temporária de uploads
+    temp_dir = Path("temp_uploads")
+    temp_dir.mkdir(exist_ok=True)
+    
+    # Salva o arquivo temporariamente com seu nome original
+    temp_file_path = temp_dir / uploaded_file.name
+    with open(temp_file_path, "wb") as f:
+        f.write(uploaded_file.getbuffer())
+        
+    # 2. Cria pasta de saída de markdown se não existir
+    output_dir = Path("markdown_output")
+    output_dir.mkdir(exist_ok=True)
+    
+    output_md_path = output_dir / f"{temp_file_path.prefix if hasattr(temp_file_path, 'prefix') else temp_file_path.stem}MD.md"
+    
+    st.info(f"💾 Processando upload temporário e salvando resultado em: {output_md_path}")
+    
+    # 3. Executa o pipeline
+    success = run_file_pipeline(str(temp_file_path), str(output_md_path), gemini_key)
+    
+    # 4. Remove o arquivo temporário original para manter o sistema limpo
+    try:
+        if temp_file_path.exists():
+            os.remove(temp_file_path)
+    except Exception as e:
+        print(f"Erro ao remover arquivo temporário {temp_file_path}: {e}")
+        
+    return output_md_path if success else None
 
 def process_batch_directory(directory_path_str: str, gemini_key: str, overwrite: bool = False):
     """
@@ -391,9 +595,139 @@ def process_uploaded_file(uploaded_file, gemini_key): # RENOMEADO
 
 # --- Layout da Aplicação ---
 
+# --- Barra Lateral (Controle de Navegação e Logout) ---
+with st.sidebar:
+    st.markdown("### 👤 Usuário Conectado")
+    role_badge = "🟢 Administrador" if st.session_state['is_admin'] else "🔵 Usuário Padrão"
+    st.markdown(f"**Nome:** `{st.session_state['username']}`")
+    st.markdown(f"**Perfil:** {role_badge}")
+    
+    # Alerta de Segurança se o admin estiver usando a senha padrão
+    if st.session_state['username'] == 'admin':
+        if auth.authenticate_user("admin", "admin123"):
+            st.warning("⚠️ **ALERTA DE SEGURANÇA:**\nA senha do usuário 'admin' ainda é a senha padrão provisória ('admin123'). Por favor, altere-a imediatamente na aba de Gestão de Usuários!")
+            
+    st.markdown("---")
+    
+    # Navegação de Telas (Somente visível para Admin)
+    app_mode = "📄 Processar Documentos"
+    if st.session_state['is_admin']:
+        app_mode = st.radio(
+            "Navegação",
+            ["📄 Processar Documentos", "👥 Gestão de Usuários"],
+            key="nav_mode"
+        )
+    
+    st.markdown("---")
+    if st.button("🚪 Sair do Sistema", use_container_width=True):
+        st.session_state['authenticated'] = False
+        st.session_state['username'] = ""
+        st.session_state['is_admin'] = False
+        st.success("Logout efetuado!")
+        st.rerun()
 
-# --- Layout da Aplicação ---
+# --- Conteúdo Principal dependendo da Seleção ---
+if app_mode == "👥 Gestão de Usuários":
+    st.title("👥 Gestão de Usuários")
+    st.markdown("---")
+    
+    tab_list, tab_create = st.tabs(["📋 Usuários Cadastrados", "➕ Criar Novo Usuário"])
+    
+    with tab_list:
+        users = auth.list_users()
+        
+        for u in users:
+            u_id = u['id']
+            u_name = u['username']
+            u_admin = u['is_admin']
+            
+            with st.container(border=True):
+                col_info, col_actions = st.columns([2, 1], vertical_alignment="center")
+                with col_info:
+                    badge = "🟢 Admin" if u_admin else "🔵 Usuário"
+                    status_badge = " &nbsp;&nbsp;&nbsp; ⚠️ *Alteração de senha pendente*" if u.get('needs_password_change') else ""
+                    st.markdown(f"**Usuário:** `{u_name}` &nbsp;&nbsp;&nbsp; {badge}{status_badge}")
+                    st.caption(f"Criado em: {u['created_at']} | Atualizado em: {u['updated_at']}")
+                
+                with col_actions:
+                    col_edit, col_pwd, col_del = st.columns(3)
+                    
+                    with col_edit:
+                        if st.button("✏️", key=f"edit_{u_id}", help="Editar Usuário"):
+                            st.session_state[f"show_edit_{u_id}"] = not st.session_state.get(f"show_edit_{u_id}", False)
+                            st.session_state[f"show_pwd_{u_id}"] = False
+                            st.session_state[f"show_del_{u_id}"] = False
+                            st.rerun()
+                            
+                    with col_pwd:
+                        if st.button("🔑", key=f"pwd_{u_id}", help="Redefinir Senha"):
+                            st.session_state[f"show_pwd_{u_id}"] = not st.session_state.get(f"show_pwd_{u_id}", False)
+                            st.session_state[f"show_edit_{u_id}"] = False
+                            st.session_state[f"show_del_{u_id}"] = False
+                            st.rerun()
+                            
+                    with col_del:
+                        if st.button("🗑️", key=f"del_{u_id}", help="Excluir Usuário"):
+                            st.session_state[f"show_del_{u_id}"] = not st.session_state.get(f"show_del_{u_id}", False)
+                            st.session_state[f"show_edit_{u_id}"] = False
+                            st.session_state[f"show_pwd_{u_id}"] = False
+                            st.rerun()
+                
+                # Seções expansíveis de ação
+                if st.session_state.get(f"show_edit_{u_id}", False):
+                    st.markdown("##### Editar Usuário")
+                    new_u_name = st.text_input("Novo nome de usuário", value=u_name, key=f"input_edit_name_{u_id}")
+                    new_u_admin = st.checkbox("Administrador?", value=u_admin, key=f"input_edit_admin_{u_id}")
+                    if st.button("Confirmar Edição", key=f"btn_edit_confirm_{u_id}", type="primary"):
+                        success, msg = auth.update_user(u_id, new_u_name, new_u_admin)
+                        if success:
+                            st.success(msg)
+                            st.session_state[f"show_edit_{u_id}"] = False
+                            st.rerun()
+                        else:
+                            st.error(msg)
+                            
+                if st.session_state.get(f"show_pwd_{u_id}", False):
+                    st.markdown("##### Redefinir Senha")
+                    new_pwd = st.text_input("Nova Senha", type="password", key=f"input_pwd_{u_id}")
+                    if st.button("Confirmar Nova Senha", key=f"btn_pwd_confirm_{u_id}", type="primary"):
+                        success, msg = auth.reset_password(u_id, new_pwd)
+                        if success:
+                            st.success(msg)
+                            st.session_state[f"show_pwd_{u_id}"] = False
+                            st.rerun()
+                        else:
+                            st.error(msg)
+                            
+                if st.session_state.get(f"show_del_{u_id}", False):
+                    st.warning(f"Tem certeza que deseja excluir o usuário `{u_name}`? Esta ação não pode ser desfeita.")
+                    if st.button("Sim, Excluir", key=f"btn_del_confirm_{u_id}", type="primary"):
+                        success, msg = auth.delete_user(u_id, st.session_state['username'])
+                        if success:
+                            st.success(msg)
+                            st.session_state[f"show_del_{u_id}"] = False
+                            st.rerun()
+                        else:
+                            st.error(msg)
+                            
+    with tab_create:
+        st.markdown("### ➕ Cadastrar Novo Usuário")
+        st.info("ℹ️ Novos usuários são criados automaticamente com a senha provisória **123456** e serão obrigados a alterá-la no primeiro acesso por questões de segurança.")
+        with st.form("create_user_form", clear_on_submit=True):
+            new_username = st.text_input("Nome de Usuário", placeholder="Ex: joao.silva")
+            new_is_admin = st.checkbox("Conceder privilégios de Administrador?")
+            create_submit = st.form_submit_button("Cadastrar Usuário", use_container_width=True)
+            
+            if create_submit:
+                success, msg = auth.create_user(new_username, new_is_admin)
+                if success:
+                    st.success(msg)
+                else:
+                    st.error(msg)
+    
+    st.stop() # Interrompe a execução aqui para administradores na tela de Gestão de Usuários
 
+# --- Layout da Aplicação Original ---
 st.title("📄 Processador de Documentos para Markdown")
 st.markdown("---")
 
@@ -406,14 +740,28 @@ col_input1, col_input2 = st.columns([1, 1])
 tab_local, tab_batch, tab_dropbox, tab_youtube = st.tabs(["📂 Arquivo Local", "📦 Pasta (Lote)", "☁️ Dropbox", "📺 YouTube"])
 
 with tab_local:
-    st.info("ℹ️ Selecione um arquivo para salvar a versão Markdown na **mesma pasta original**.")
-    
-    col_btn, col_txt = st.columns([1, 4], vertical_alignment="bottom")
-    
-    with col_btn:
-        if st.button("📂 Selecionar Arquivo", use_container_width=True):
-            import subprocess, sys
-            code = """
+    if IS_HEADLESS:
+        st.info("ℹ️ Faça o upload de um arquivo para converter e gerar a versão Markdown para download.")
+        uploaded_file = st.file_uploader(
+            "Selecione um arquivo para converter:",
+            type=['pdf', 'docx', 'pptx', 'xlsx', 'doc', 'xls', 'csv', 'json', 'xml', 'html', 'zip', 'mp3', 'wav', 'jpg', 'png', 'epub'],
+            key=f"file_uploader_{st.session_state['reset_counter']}"
+        )
+        if uploaded_file:
+            st.session_state['uploaded_file'] = uploaded_file
+            # Limpa outras seleções para evitar conflitos
+            st.session_state['selected_local_path'] = None
+            st.session_state['selected_batch_dir'] = None
+            st.session_state['dbx_selected_for_processing'] = None
+    else:
+        st.info("ℹ️ Selecione um arquivo para salvar a versão Markdown na **mesma pasta original**.")
+        
+        col_btn, col_txt = st.columns([1, 4], vertical_alignment="bottom")
+        
+        with col_btn:
+            if st.button("📂 Selecionar Arquivo", use_container_width=True):
+                import subprocess, sys
+                code = """
 import tkinter as tk
 from tkinter import filedialog
 root = tk.Tk()
@@ -429,34 +777,38 @@ path = filedialog.askopenfilename(
 )
 print(path)
 """
-            result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
-            file_path = result.stdout.strip()
-            
-            if file_path:
-                st.session_state['selected_local_path'] = file_path
-                # Limpa outras seleções
-                st.session_state['selected_batch_dir'] = None
-                st.session_state['dbx_selected_for_processing'] = None
-                st.session_state['processed_file'] = None
-                st.rerun() 
-    
-    with col_txt:
-        # Mostra o caminho selecionado (Usa st.code para garantir atualização visual)
-        current_path = st.session_state.get('selected_local_path', '')
-        if current_path:
-             st.code(current_path, language=None)
-        else:
-             st.info("Nenhum arquivo selecionado.", icon="ℹ️")
+                result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+                file_path = result.stdout.strip()
+                
+                if file_path:
+                    st.session_state['selected_local_path'] = file_path
+                    st.session_state['uploaded_file'] = None
+                    # Limpa outras seleções
+                    st.session_state['selected_batch_dir'] = None
+                    st.session_state['dbx_selected_for_processing'] = None
+                    st.session_state['processed_file'] = None
+                    st.rerun() 
+        
+        with col_txt:
+            # Mostra o caminho selecionado (Usa st.code para garantir atualização visual)
+            current_path = st.session_state.get('selected_local_path', '')
+            if current_path:
+                 st.code(current_path, language=None)
+            else:
+                 st.info("Nenhum arquivo selecionado.", icon="ℹ️")
 
 with tab_batch:
-    st.info("ℹ️ Selecione uma **PASTA** para converter TODOS os arquivos contidos nela (Recursivo).")
-    
-    col_btn_batch, col_txt_batch = st.columns([1, 4], vertical_alignment="bottom")
-    
-    with col_btn_batch:
-        if st.button("📂 Selecionar Pasta", use_container_width=True):
-            import subprocess, sys
-            code = """
+    if IS_HEADLESS:
+        st.warning("⚠️ **Aviso:** O processamento de pastas locais (Lote) está desativado em modo servidor (VPS/Docker) pois requer acesso ao sistema de arquivos do servidor. Para processar múltiplos arquivos em lote na nuvem, utilize a aba **Dropbox**, que oferece navegação de pastas e processamento incremental seguro.")
+    else:
+        st.info("ℹ️ Selecione uma **PASTA** para converter TODOS os arquivos contidos nela (Recursivo).")
+        
+        col_btn_batch, col_txt_batch = st.columns([1, 4], vertical_alignment="bottom")
+        
+        with col_btn_batch:
+            if st.button("📂 Selecionar Pasta", use_container_width=True):
+                import subprocess, sys
+                code = """
 import tkinter as tk
 from tkinter import filedialog
 root = tk.Tk()
@@ -465,36 +817,40 @@ root.wm_attributes('-topmost', 1)
 path = filedialog.askdirectory(title='Selecione a Pasta para Processamento em Lote')
 print(path)
 """
-            result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
-            dir_path = result.stdout.strip()
-            
-            if dir_path:
-                st.session_state['selected_batch_dir'] = dir_path
-                # Limpa outras seleções
-                st.session_state['selected_local_path'] = None
-                st.session_state['dbx_selected_for_processing'] = None
-                st.session_state['processed_file'] = None
-                st.rerun()
+                result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+                dir_path = result.stdout.strip()
                 
-    with col_txt_batch:
-        current_dir = st.session_state.get('selected_batch_dir', '')
-        if current_dir:
-            st.code(current_dir, language=None)
-        else:
-            st.info("Nenhuma pasta selecionada.", icon="ℹ️")
-        
-        # --- RLM INDEX GENERATION (LOCAL) ---
-        if current_dir:
-            st.divider()
-            st.subheader("📚 Índice Semântico (RLM)")
-            if st.button("🧠 Gerar Índice PDF desta Pasta", key="btn_index_local_main"):
-                gemini_key = st.session_state.get('api_key')
-                if not gemini_key:
-                    st.error("⚠️ É necessário configurar a Chave API Gemini para usar o RLM.")
-                else:
-                    with st.spinner("🧠 Analisando arquivos e gerando índice com RLM... (Isso pode demorar)"):
-                        generate_index_for_folder(current_dir, gemini_key, recursive=True)
-                    st.success("✅ Índice Gerado com Sucesso! Verifique os arquivos '_INDEX_CONTENT*.pdf' na pasta.")
+                if dir_path:
+                    st.session_state['selected_batch_dir'] = dir_path
+                    st.session_state['uploaded_file'] = None
+                    # Limpa outras seleções
+                    st.session_state['selected_local_path'] = None
+                    st.session_state['dbx_selected_for_processing'] = None
+                    st.session_state['processed_file'] = None
+                    st.rerun()
+                    
+        with col_txt_batch:
+            current_dir = st.session_state.get('selected_batch_dir', '')
+            if current_dir:
+                st.code(current_dir, language=None)
+            else:
+                st.info("Nenhuma pasta selecionada.", icon="ℹ️")
+            
+            # --- RLM INDEX GENERATION (LOCAL) ---
+            if current_dir:
+                st.divider()
+                st.subheader("📚 Índice Semântico (RLM)")
+                if st.button("🧠 Gerar Índice PDF desta Pasta", key="btn_index_local_main"):
+                    gemini_key = st.session_state.get('api_key')
+                    if not gemini_key:
+                        st.error("⚠️ É necessário configurar a Chave API Gemini para usar o RLM.")
+                    else:
+                        with st.spinner("🧠 Analisando arquivos e gerando índice com RLM... (Isso pode demorar)"):
+                            indexed_count = generate_index_for_folder(current_dir, gemini_key, recursive=True)
+                        if indexed_count > 0:
+                            st.success(f"✅ Índice Gerado com Sucesso! {indexed_count} arquivo(s) indexado(s). Verifique os arquivos '_INDEX_CONTENT*.pdf' na pasta.")
+                        else:
+                            st.warning("⚠️ Nenhum arquivo Markdown (.md) foi encontrado para indexar nesta pasta. Apenas arquivos convertidos para Markdown (.md) podem ser indexados. Converta seus arquivos primeiro nas abas correspondente!")
 
 with tab_dropbox:
     st.info("ℹ️ Navegue pelas pastas e clique em 'Selecionar Esta Pasta' para converter.")
@@ -637,25 +993,28 @@ with tab_dropbox:
                         
                         # 3. Gerar Índice
                         with st.spinner("🧠 RLM processando e gerando PDF..."):
-                            generate_index_for_folder(str(index_temp_dir), gemini_key, recursive=True)
+                            indexed_count = generate_index_for_folder(str(index_temp_dir), gemini_key, recursive=True)
                         
-                        # 4. Upload
-                        pdf_files = list(index_temp_dir.rglob("_INDEX_CONTENT*.pdf"))
-                        if not pdf_files:
-                            st.error("Nenhum índice gerado. (Verifique logs/arquivos MD)")
+                        if indexed_count == 0:
+                            st.warning("⚠️ Nenhum arquivo Markdown (.md) foi encontrado para indexar nesta pasta. Apenas arquivos convertidos para Markdown (.md) podem ser indexados. Converta seus arquivos do Dropbox primeiro na aba acima!")
                         else:
-                            uploaded_indexes = 0
-                            for pdf in pdf_files:
-                                rel_pdf_path = pdf.relative_to(index_temp_dir)
-                                base = dest_path if dest_path != "" else ""
-                                remote_pdf_path = f"{base}/{rel_pdf_path.as_posix()}"
-                                if remote_pdf_path.startswith("//"): remote_pdf_path = remote_pdf_path[1:]
+                            # 4. Upload
+                            pdf_files = list(index_temp_dir.rglob("_INDEX_CONTENT*.pdf"))
+                            if not pdf_files:
+                                st.error("Nenhum índice gerado. (Verifique logs/arquivos MD)")
+                            else:
+                                uploaded_indexes = 0
+                                for pdf in pdf_files:
+                                    rel_pdf_path = pdf.relative_to(index_temp_dir)
+                                    base = dest_path if dest_path != "" else ""
+                                    remote_pdf_path = f"{base}/{rel_pdf_path.as_posix()}"
+                                    if remote_pdf_path.startswith("//"): remote_pdf_path = remote_pdf_path[1:]
+                                    
+                                    st.toast(f"⬆️ Enviando: {rel_pdf_path.name}")
+                                    dbx.upload_file(str(pdf), remote_pdf_path)
+                                    uploaded_indexes += 1
                                 
-                                st.toast(f"⬆️ Enviando: {rel_pdf_path.name}")
-                                dbx.upload_file(str(pdf), remote_pdf_path)
-                                uploaded_indexes += 1
-                            
-                            st.success(f"✅ {uploaded_indexes} Índices Semânticos enviados para o Dropbox!")
+                                st.success(f"✅ {uploaded_indexes} Índices Semânticos gerados e enviados para o Dropbox com sucesso!")
                         
                         # Limpeza
                         import shutil
@@ -716,8 +1075,12 @@ selected_local_path = st.session_state.get('selected_local_path')
 selected_batch_dir = st.session_state.get('selected_batch_dir')
 # Dropbox input (Seleção via Navegador)
 dropbox_selected_processing = st.session_state.get('dbx_selected_for_processing')
+uploaded_file = st.session_state.get('uploaded_file')
 
-if selected_local_path:
+if uploaded_file:
+    has_input = True
+    input_name = f"Upload Web: {uploaded_file.name}"
+elif selected_local_path:
     has_input = True
     input_name = f"Arquivo Local: {os.path.basename(selected_local_path)}"
 elif selected_batch_dir:
@@ -760,7 +1123,20 @@ if has_input:
              else:
                  st.error("❌ URL do YouTube inválida.")
 
-        # 2. Arquivo Local (Via Dialogo Nativo)
+        # 2. Upload Web (Headless)
+        elif uploaded_file:
+            if st.session_state['api_key']:
+                st.info("Modo de Processamento: Híbrido (Upload Web + Nuvem Gemini)")
+            else:
+                st.info("Modo de Processamento: 100% Local (Upload Web + MarkItDown/Tesseract)")
+                
+            with st.spinner("Processando Upload Web..."):
+                 output_path = process_uploaded_file(uploaded_file, st.session_state['api_key'])
+                 if output_path:
+                     st.session_state['processed_file'] = str(output_path)
+                     st.success("✅ Upload processado com sucesso!")
+
+        # 3. Arquivo Local (Via Dialogo Nativo)
         elif selected_local_path:
             
             if st.session_state['api_key']:
@@ -812,22 +1188,33 @@ if st.session_state['processed_file'] and os.path.exists(st.session_state['proce
         key="markdown_preview"
     )
     
-    # Botão de Limpeza (Agora ocupa toda a largura, já que download foi removido)
-    if st.button("🗑️ Limpar Arquivos de Saída Antigos", use_container_width=True):
-        if clean_output_directory():
-            st.success("Pasta de saída limpa com sucesso!")
-        else:
-            st.info("Nenhum arquivo para limpar na pasta de saída.")
-        
-        # Limpa o estado da sessão e inputs
-        st.session_state['processed_file'] = None
-        st.session_state['reset_counter'] += 1      # Incrementa contador para resetar TODOS os inputs
-        st.session_state['selected_local_path'] = None # Limpa seleção de arquivo local
-        st.session_state['selected_batch_dir'] = None # Limpa seleção de pasta
-        st.rerun() 
+    # Criamos colunas para acomodar o botão de download (especialmente importante para Headless/VPS)
+    col_download, col_cleanup = st.columns(2)
+    with col_download:
+        st.download_button(
+            label="⬇️ Baixar Arquivo Markdown",
+            data=md_content,
+            file_name=Path(st.session_state['processed_file']).name,
+            mime="text/markdown",
+            use_container_width=True
+        )
+    with col_cleanup:
+        if st.button("🗑️ Limpar Arquivos de Saída Antigos", use_container_width=True):
+            if clean_output_directory():
+                st.success("Pasta de saída limpa com sucesso!")
+            else:
+                st.info("Nenhum arquivo para limpar na pasta de saída.")
+            
+            # Limpa o estado da sessão e inputs
+            st.session_state['processed_file'] = None
+            st.session_state['uploaded_file'] = None    # Limpa arquivo web upload
+            st.session_state['reset_counter'] += 1      # Incrementa contador para resetar TODOS os inputs
+            st.session_state['selected_local_path'] = None # Limpa seleção de arquivo local
+            st.session_state['selected_batch_dir'] = None # Limpa seleção de pasta
+            st.rerun() 
 
     # Exibir o caminho de salvamento final
-    st.caption(f"Arquivo salvo localmente em: {Path(st.session_state['processed_file']).resolve()}")
+    st.caption(f"Arquivo salvo localmente no servidor em: {Path(st.session_state['processed_file']).resolve()}")
 
 
 # --- Inicialização do Streamlit ---

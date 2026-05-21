@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class GeminiClient:
-    def __init__(self, api_key: Optional[str] = None, model: str = "gemini-2.0-flash"):
+    def __init__(self, api_key: Optional[str] = None, model: str = "gemini-2.5-flash"):
         self.api_key = api_key or os.getenv("GOOGLE_GEMINI_API_KEY")
         if not self.api_key:
             raise ValueError("Google Gemini API key is required. Set GOOGLE_GEMINI_API_KEY environment variable or pass api_key parameter.")

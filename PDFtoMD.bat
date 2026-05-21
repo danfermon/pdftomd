@@ -2,7 +2,7 @@
 REM Renomeado para pdftomd.bat
 
 REM 1. Ativa o ambiente virtual
-call C:\pdftomd\venv\Scripts\activate
+call "%~dp0venv\Scripts\activate"
 
 REM 2. Inicia o Streamlit e abre o navegador
 streamlit run app.py

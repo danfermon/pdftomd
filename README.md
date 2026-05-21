@@ -35,7 +35,7 @@ A aplicação foi migrada de scripts via CLI para uma interface visual completa.
 
 ### Estrutura do Projeto
 ```text
-C:\pdftomd
+D:\2026_projects\pdftomd
 ├── app.py                  # Entrypoint principal (Interface Streamlit)
 ├── index_generator.py      # Motor de indexação semântica (Geração de resumos e PDF)
 ├── dropbox_handler.py      # Integração com a API do Dropbox (OAuth, navegação, I/O)
@@ -59,7 +59,7 @@ C:\pdftomd
 
 ```bash
 # Clone o repositório ou acesse a pasta raiz
-cd C:\pdftomd
+cd D:\2026_projects\pdftomd
 
 # Crie um ambiente virtual (Recomendado)
 python -m venv venv

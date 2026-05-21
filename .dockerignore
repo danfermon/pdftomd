@@ -1,0 +1,34 @@
+# .dockerignore
+# Python/Pip
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ipynb_checkpoints/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Databases
+*.db
+*.db-journal
+*.sqlite3
+
+# Git
+.git/
+.gitignore
+
+# Environment / Secret keys
+.env
+
+# Application local outputs & temp folders
+markdown_output/
+temp_uploads/
+temp_dropbox/
+temp_dropbox_index/
+
+# OS specific files
+.DS_Store
+Thumbs.db

@@ -9,36 +9,51 @@ from reportlab.lib import colors
 # Use GeminiClient diretamente para maior robustez na sumarização simples
 from rlm.utils.llm import GeminiClient
 
-def generate_index_for_folder(folder_path_str: str, api_key: str, recursive: bool = True):
+def generate_index_for_folder(folder_path_str: str, api_key: str, recursive: bool = True) -> int:
     """
     Gera um índice semântico em PDF para a pasta especificada.
     Analisa arquivos .md, gera resumos e keywords usando RLM.
     Se recursive=True, processa subpastas também.
+    Retorna o número de arquivos .md indexados com sucesso.
     """
     folder_path = Path(folder_path_str)
     if not folder_path.exists():
-        print(f"Erro: Pasta não encontrada: {folder_path}")
-        return
+        print(f"[ERROR] Pasta nao encontrada: {folder_path}")
+        return 0
 
-    print(f"📍 Iniciando indexação de: {folder_path.name}")
+    print(f"[INDEX] Iniciando indexacao de: {folder_path.name}")
 
-    # 1. Identificar arquivos Markdown na raiz desta pasta
+    # 1. Identificar arquivos Markdown de forma case-insensitive e robusta na raiz desta pasta
     # Ignora arquivos que começam com ponto ou underscore (como _INDEX, .git)
-    md_files = [
-        f for f in folder_path.glob("*.md") 
-        if not f.name.startswith("_") and not f.name.startswith(".")
-    ]
+    md_files = []
+    all_files = []
+    try:
+        if folder_path.is_dir():
+            all_files = [f for f in folder_path.iterdir() if f.is_file()]
+            for f in all_files:
+                if f.suffix.lower() == '.md' and not f.name.startswith("_") and not f.name.startswith("."):
+                    md_files.append(f)
+    except Exception as e_list:
+        print(f"[ERROR] Erro ao listar arquivos da pasta: {e_list}")
+        return 0
+
+    # Fornecer avisos no console se existirem outros tipos de arquivos, mas nenhum .md
+    if not md_files and all_files:
+        non_md = [f for f in all_files if f.suffix.lower() != '.md' and not f.name.startswith("_") and not f.name.startswith(".")]
+        if non_md:
+            print(f"[WARN] Nao foram encontrados arquivos .md para indexar. Existem {len(non_md)} outros arquivos (ex: {', '.join(f.name for f in non_md[:3])}) que precisam ser convertidos para Markdown (.md) antes da indexacao.")
 
     index_data = []
+    indexed_count = 0
     
     # 2. Processar Arquivos
     if md_files:
         # Inicializa Gemini Client Diretamente (Bypass RLM REPL complexo)
         try:
-            client = GeminiClient(api_key=api_key, model="gemini-2.0-flash")
+            client = GeminiClient(api_key=api_key, model="gemini-2.5-flash")
             
             for md_file in md_files:
-                print(f"  📖 Analisando: {md_file.name}")
+                print(f"  [READ] Analisando: {md_file.name}")
                 try:
                     with open(md_file, 'r', encoding='utf-8-sig') as f:
                         content = f.read()
@@ -103,11 +118,11 @@ def generate_index_for_folder(folder_path_str: str, api_key: str, recursive: boo
                             keywords = str(keywords_list)
                             
                     except json.JSONDecodeError:
-                        print(f"  ⚠️ Erro ao decodificar JSON para {md_file.name}. Tentando fallback texto.")
+                        print(f"  [WARN] Erro ao decodificar JSON para {md_file.name}. Tentando fallback texto.")
                         # Fallback: Tenta pegar texto cru se o JSON falhar muito feio
                         summary = analysis[:300].replace("\n", " ").strip() + "..."
                     except Exception as e_parse:
-                         print(f"  ⚠️ Erro de parse genérico: {e_parse}")
+                         print(f"  [WARN] Erro de parse generico: {e_parse}")
                          summary = analysis[:300].replace("\n", " ") + "..."
 
                     index_data.append({
@@ -115,13 +130,12 @@ def generate_index_for_folder(folder_path_str: str, api_key: str, recursive: boo
                         "summary": summary,
                         "keywords": keywords
                     })
+                    indexed_count += 1
                     
                 except Exception as e:
-                    print(f"  ❌ Erro ao analisar {md_file.name}: {e}")
-                except Exception as e:
-                    print(f"  ❌ Erro ao analisar {md_file.name}: {e}")
+                    print(f"  [ERROR] Erro ao analisar {md_file.name}: {e}")
         except Exception as e_init:
-             print(f"Erro ao inicializar Gemini Client: {e_init}")
+             print(f"[ERROR] Erro ao inicializar Gemini Client: {e_init}")
 
         # 3. Gerar PDF se houver dados
         if index_data:
@@ -129,16 +143,21 @@ def generate_index_for_folder(folder_path_str: str, api_key: str, recursive: boo
             pdf_path = folder_path / pdf_filename
             try:
                 create_pdf_report(str(pdf_path), folder_path.name, index_data)
-                print(f"  ✅ Índice PDF Criado: {pdf_path}")
+                print(f"  [SUCCESS] Indice PDF Criado: {pdf_path}")
             except Exception as e_pdf:
-                print(f"Erro ao gerar PDF: {e_pdf}")
+                print(f"[ERROR] Erro ao gerar PDF: {e_pdf}")
 
     # 4. Recursividade (Depth First)
     if recursive:
-        # Pega todas as subpastas diretias
-        subfolders = [d for d in folder_path.iterdir() if d.is_dir() and not d.name.startswith(".")]
-        for sub in subfolders:
-            generate_index_for_folder(str(sub), api_key, recursive=True)
+        try:
+            # Pega todas as subpastas diretias
+            subfolders = [d for d in folder_path.iterdir() if d.is_dir() and not d.name.startswith(".")]
+            for sub in subfolders:
+                indexed_count += generate_index_for_folder(str(sub), api_key, recursive=True)
+        except Exception as e_sub:
+            print(f"[ERROR] Erro ao processar subpastas: {e_sub}")
+
+    return indexed_count
 
 def create_pdf_report(output_path, folder_name, data):
     """

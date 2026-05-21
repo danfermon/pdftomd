@@ -1,4 +1,4 @@
-# C:\pdftomd\pipeline_master.py
+# pipeline_master.py
 
 import os
 import sys

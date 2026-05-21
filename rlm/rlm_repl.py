@@ -7,8 +7,8 @@ from .utils.utils import parse_code_blocks, parse_final_answer
 class RLM_REPL:
     def __init__(
         self,
-        model: str = "gemini-2.0-flash",
-        recursive_model: str = "gemini-2.0-flash",
+        model: str = "gemini-2.5-flash",
+        recursive_model: str = "gemini-2.5-flash",
         enable_logging: bool = False,
         max_iterations: int = 10
     ):

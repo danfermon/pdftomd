@@ -1,4 +1,4 @@
-# C:\pdftomd\gcv_ocr.py
+# gcv_ocr.py
 
 import os
 import sys
@@ -64,8 +64,9 @@ def ocr_local_tesseract(pdf_path: str, output_md: str) -> bool:
     full_markdown_content = []
     
     try:
-        # Tesseract precisa saber onde está o tessdata
-        os.environ['TESSDATA_PREFIX'] = str(BIN_PATH / "tessdata")
+        # Tesseract precisa saber onde está o tessdata (apenas se fornecido localmente em bin/tessdata)
+        if (BIN_PATH / "tessdata").exists():
+            os.environ['TESSDATA_PREFIX'] = str(BIN_PATH / "tessdata")
         
         for i, img in enumerate(pil_images):
             page_num = i + 1
