@@ -13,11 +13,17 @@ class DropboxHandler:
         """Verifica se a conexão e o token são validos."""
         try:
             account = self.dbx.users_get_current_account()
-            return True, f"Conectado como: {account.name.display_name}"
+            lang = st.session_state.get('lang', 'pt')
+            connected_msg = f"Connected as: {account.name.display_name}" if lang == 'en' else f"Conectado como: {account.name.display_name}"
+            return True, connected_msg
         except AuthError:
-            return False, "Erro de Autenticação: Token expirado ou inválido."
+            lang = st.session_state.get('lang', 'pt')
+            err_msg = "Authentication Error: Expired or invalid token." if lang == 'en' else "Erro de Autenticação: Token expirado ou inválido."
+            return False, err_msg
         except Exception as e:
-            return False, f"Erro de Conexão: {str(e)}"
+            lang = st.session_state.get('lang', 'pt')
+            err_msg = f"Connection Error: {str(e)}" if lang == 'en' else f"Erro de Conexão: {str(e)}"
+            return False, err_msg
 
     def list_files_recursive(self, folder_path, supported_extensions):
         """Lista arquivos recursivamente filtrando por extensão."""
@@ -44,7 +50,9 @@ class DropboxHandler:
 
             return files_found
         except ApiError as e:
-            st.error(f"Erro ao listar arquivos do Dropbox: {e}")
+            lang = st.session_state.get('lang', 'pt')
+            msg = f"Erro ao listar arquivos do Dropbox: {e}" if lang == 'pt' else f"Error listing Dropbox files: {e}"
+            st.error(msg)
             return []
 
     def list_subfolders(self, folder_path):

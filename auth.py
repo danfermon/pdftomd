@@ -5,6 +5,15 @@ import hashlib
 import sqlite3
 import hmac
 from datetime import datetime
+import streamlit as st
+
+def get_msg(key_pt, key_en):
+    try:
+        lang = st.session_state.get('lang', 'pt')
+    except Exception:
+        lang = 'pt'
+    return key_en if lang == 'en' else key_pt
+
 
 DB_PATH = os.getenv("USERS_DB_PATH", "users.db")
 ITERATIONS = 600000
@@ -120,11 +129,11 @@ def create_user(username: str, is_admin: bool = False) -> tuple[bool, str]:
     e marca como obrigatória a troca no primeiro acesso.
     """
     if not username:
-        return False, "O nome de usuário é obrigatório."
+        return False, get_msg("O nome de usuário é obrigatório.", "Username is required.")
     
     username = username.strip()
     if len(username) < 3:
-        return False, "O nome de usuário deve ter pelo menos 3 caracteres."
+        return False, get_msg("O nome de usuário deve ter pelo menos 3 caracteres.", "The username must be at least 3 characters long.")
         
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -136,11 +145,12 @@ def create_user(username: str, is_admin: bool = False) -> tuple[bool, str]:
             (username, hash_hex, salt_hex, 1 if is_admin else 0)
         )
         conn.commit()
-        return True, "Usuário criado com sucesso! Senha temporária: 123456"
+        return True, get_msg("Usuário criado com sucesso! Senha temporária: 123456", "User created successfully! Temporary password: 123456")
     except sqlite3.IntegrityError:
-        return False, "Este nome de usuário já está em uso."
+        return False, get_msg("Este nome de usuário já está em uso.", "This username is already in use.")
     except Exception as e:
-        return False, f"Erro ao criar usuário: {str(e)}"
+        err_msg = get_msg("Erro ao criar usuário: ", "Error creating user: ")
+        return False, f"{err_msg}{str(e)}"
     finally:
         conn.close()
 
@@ -150,11 +160,11 @@ def update_user(user_id: int, username: str, is_admin: bool) -> tuple[bool, str]
     Previne que o último administrador perca suas credenciais.
     """
     if not username:
-        return False, "O nome de usuário é obrigatório."
+        return False, get_msg("O nome de usuário é obrigatório.", "Username is required.")
     
     username = username.strip()
     if len(username) < 3:
-        return False, "O nome de usuário deve ter pelo menos 3 caracteres."
+        return False, get_msg("O nome de usuário deve ter pelo menos 3 caracteres.", "The username must be at least 3 characters long.")
         
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -163,25 +173,26 @@ def update_user(user_id: int, username: str, is_admin: bool) -> tuple[bool, str]
         cursor.execute("SELECT username, is_admin FROM users WHERE id = ?", (user_id,))
         user = cursor.fetchone()
         if not user:
-            return False, "Usuário não encontrado."
+            return False, get_msg("Usuário não encontrado.", "User not found.")
             
         if user['is_admin'] and not is_admin:
             # Conta se existem outros administradores
             cursor.execute("SELECT COUNT(*) as count FROM users WHERE is_admin = 1 AND id != ?", (user_id,))
             other_admin_count = cursor.fetchone()['count']
             if other_admin_count == 0:
-                return False, "Não é permitido remover o privilégio de administrador do único administrador restante."
+                return False, get_msg("Não é permitido remover o privilégio de administrador do único administrador restante.", "It is not allowed to remove administrator privileges from the only remaining administrator.")
         
         cursor.execute(
             "UPDATE users SET username = ?, is_admin = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
             (username, 1 if is_admin else 0, user_id)
         )
         conn.commit()
-        return True, "Usuário atualizado com sucesso!"
+        return True, get_msg("Usuário atualizado com sucesso!", "User updated successfully!")
     except sqlite3.IntegrityError:
-        return False, "Este nome de usuário já está em uso."
+        return False, get_msg("Este nome de usuário já está em uso.", "This username is already in use.")
     except Exception as e:
-        return False, f"Erro ao atualizar usuário: {str(e)}"
+        err_msg = get_msg("Erro ao atualizar usuário: ", "Error updating user: ")
+        return False, f"{err_msg}{str(e)}"
     finally:
         conn.close()
 
@@ -191,7 +202,7 @@ def reset_password(user_id: int, new_password: str) -> tuple[bool, str]:
     Força a obrigação de trocar a senha no próximo acesso.
     """
     if len(new_password) < 4:
-        return False, "A nova senha deve ter pelo menos 4 caracteres."
+        return False, get_msg("A nova senha deve ter pelo menos 4 caracteres.", "The new password must be at least 4 characters long.")
         
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -202,9 +213,10 @@ def reset_password(user_id: int, new_password: str) -> tuple[bool, str]:
             (hash_hex, salt_hex, user_id)
         )
         conn.commit()
-        return True, "Senha redefinida com sucesso! O usuário deverá alterá-la no próximo acesso."
+        return True, get_msg("Senha redefinida com sucesso! O usuário deverá alterá-la no próximo acesso.", "Password reset successfully! The user must change it on their next access.")
     except Exception as e:
-        return False, f"Erro ao redefinir senha: {str(e)}"
+        err_msg = get_msg("Erro ao redefinir senha: ", "Error resetting password: ")
+        return False, f"{err_msg}{str(e)}"
     finally:
         conn.close()
 
@@ -214,9 +226,9 @@ def change_password_on_first_login(user_id: int, new_password: str) -> tuple[boo
     Salva o novo hash, atualiza o salt e marca a flag 'needs_password_change' como 0 (False).
     """
     if len(new_password) < 6:
-        return False, "A nova senha deve ter pelo menos 6 caracteres."
+        return False, get_msg("A nova senha deve ter pelo menos 6 caracteres.", "The new password must be at least 6 characters long.")
     if new_password == "123456":
-        return False, "A senha não pode ser a senha padrão '123456'. Defina uma senha mais segura."
+        return False, get_msg("A senha não pode ser a senha padrão '123456'. Defina uma senha mais segura.", "The password cannot be the default password '123456'. Set a more secure password.")
         
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -227,9 +239,10 @@ def change_password_on_first_login(user_id: int, new_password: str) -> tuple[boo
             (hash_hex, salt_hex, user_id)
         )
         conn.commit()
-        return True, "Senha atualizada com sucesso!"
+        return True, get_msg("Senha atualizada com sucesso!", "Password updated successfully!")
     except Exception as e:
-        return False, f"Erro ao atualizar senha: {str(e)}"
+        err_msg = get_msg("Erro ao atualizar senha: ", "Error updating password: ")
+        return False, f"{err_msg}{str(e)}"
     finally:
         conn.close()
 
@@ -244,23 +257,24 @@ def delete_user(user_id: int, current_admin_username: str) -> tuple[bool, str]:
         cursor.execute("SELECT username, is_admin FROM users WHERE id = ?", (user_id,))
         user = cursor.fetchone()
         if not user:
-            return False, "Usuário não encontrado."
+            return False, get_msg("Usuário não encontrado.", "User not found.")
             
         if user['username'] == current_admin_username:
-            return False, "Não é permitido excluir seu próprio usuário logado."
+            return False, get_msg("Não é permitido excluir seu próprio usuário logado.", "It is not allowed to delete your own logged-in user.")
             
         if user['is_admin']:
             # Verifica se é o último administrador
             cursor.execute("SELECT COUNT(*) as count FROM users WHERE is_admin = 1 AND id != ?", (user_id,))
             other_admin_count = cursor.fetchone()['count']
             if other_admin_count == 0:
-                return False, "Não é permitido excluir o único administrador restante."
+                return False, get_msg("Não é permitido excluir o único administrador restante.", "It is not allowed to delete the only remaining administrator.")
                 
         cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
         conn.commit()
-        return True, "Usuário excluído com sucesso!"
+        return True, get_msg("Usuário excluído com sucesso!", "User deleted successfully!")
     except Exception as e:
-        return False, f"Erro ao excluir usuário: {str(e)}"
+        err_msg = get_msg("Erro ao excluir usuário: ", "Error deleting user: ")
+        return False, f"{err_msg}{str(e)}"
     finally:
         conn.close()
 

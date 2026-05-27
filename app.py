@@ -23,16 +23,388 @@ from gcv_ocr import ocr_local_tesseract, extract_ocr_to_markdown_gemini
 from youtube_handler import is_youtube_url, extract_youtube_transcript # NOVO
 from index_generator import generate_index_for_folder # NOVO RLM
 
+
+
+# --- Sistema de Tradução ---
+TRANSLATIONS = {
+    "pt": {
+        "page_title": "Processador de Documentos para Markdown",
+        "login_subtitle": "Sistema Seguro de Processamento de Documentos",
+        "username": "Usuário",
+        "username_placeholder": "Digite seu usuário...",
+        "password": "Senha",
+        "password_placeholder": "Digite sua senha...",
+        "enter": "Entrar",
+        "login_success": "Login efetuado com sucesso! Redirecionando...",
+        "login_error": "Usuário ou senha inválidos. Tente novamente.",
+        "forced_change_pwd_title": "🔒 Alteração de Senha Obrigatória",
+        "forced_change_pwd_subtitle": "Este é o seu primeiro acesso ou sua senha foi resetada. Por questões de segurança, você deve escolher uma senha forte.",
+        "new_pwd": "Nova Senha",
+        "new_pwd_placeholder": "Digite uma nova senha...",
+        "confirm_pwd": "Confirme a Nova Senha",
+        "confirm_pwd_placeholder": "Repita a nova senha...",
+        "change_pwd_btn": "Alterar Senha e Entrar",
+        "pwd_blank_error": "A nova senha não pode estar em branco.",
+        "pwd_min_len_error": "A senha deve ter pelo menos 6 caracteres por segurança.",
+        "pwd_default_error": "A nova senha não pode ser a senha padrão '123456'. Defina uma senha mais segura.",
+        "pwd_mismatch_error": "As senhas digitadas não coincidem. Tente novamente.",
+        "pwd_change_success": "Senha alterada com sucesso! Acessando o sistema...",
+        "system_error_login": "Erro interno do sistema. Por favor, tente fazer login novamente.",
+        "connected_user": "👤 Usuário Conectado",
+        "role_admin": "🟢 Administrador",
+        "role_user": "🔵 Usuário Padrão",
+        "label_name": "Nome",
+        "label_profile": "Perfil",
+        "security_alert": "⚠️ **ALERTA DE SEGURANÇA:**\nA senha do usuário 'admin' ainda é a senha padrão provisória ('admin123'). Por favor, altere-a imediatamente na aba de Gestão de Usuários!",
+        "navigation": "Navegação",
+        "nav_process_docs": "📄 Processar Documentos",
+        "nav_user_mgmt": "👥 Gestão de Usuários",
+        "logout_btn": "🚪 Sair do Sistema",
+        "logout_success": "Logout efetuado!",
+        "user_mgmt_title": "👥 Gestão de Usuários",
+        "tab_registered_users": "📋 Usuários Cadastrados",
+        "tab_create_user": "➕ Criar Novo Usuário",
+        "status_badge_admin": "🟢 Admin",
+        "status_badge_user": "🔵 Usuário",
+        "status_badge_pwd_pending": " &nbsp;&nbsp;&nbsp; ⚠️ *Alteração de senha pendente*",
+        "created_at": "Criado em",
+        "updated_at": "Atualizado em",
+        "edit_user_help": "Editar Usuário",
+        "reset_pwd_help": "Redefinir Senha",
+        "delete_user_help": "Excluir Usuário",
+        "edit_user_section_title": "##### Editar Usuário",
+        "new_username_label": "Novo nome de usuário",
+        "admin_checkbox_label": "Administrador?",
+        "confirm_edit_btn": "Confirmar Edição",
+        "reset_pwd_section_title": "##### Redefinir Senha",
+        "reset_pwd_confirm_btn": "Confirmar Nova Senha",
+        "delete_user_warning": "Tem certeza que deseja excluir o usuário `{}`? Esta ação não pode ser desfeita.",
+        "delete_user_yes": "Sim, Excluir",
+        "create_user_info": "ℹ️ Novos usuários são criados automaticamente com a senha provisória **123456** e serão obrigados a alterá-la no primeiro acesso por questões de segurança.",
+        "new_username_placeholder": "Ex: joao.silva",
+        "admin_privileges_checkbox": "Conceder privilégios de Administrador?",
+        "create_user_btn": "Cadastrar Usuário",
+        "process_docs_title": "📄 Processador de Documentos para Markdown",
+        "input_data_subheader": "1. Entrada de Dados",
+        "tab_local_file": "📂 Arquivo Local",
+        "tab_batch_folder": "📦 Pasta (Lote)",
+        "tab_dropbox": "☁️ Dropbox",
+        "tab_youtube": "📺 YouTube",
+        "local_tab_headless_info": "ℹ️ Faça o upload de um arquivo para converter e gerar a versão Markdown para download.",
+        "local_tab_headless_uploader": "Selecione um arquivo para converter:",
+        "local_tab_info": "ℹ️ Selecione um arquivo para salvar a versão Markdown na **mesma pasta original**.",
+        "local_tab_select_btn": "📂 Selecionar Arquivo",
+        "local_tab_no_selection": "Nenhum arquivo selecionado.",
+        "all_supported": "Todos os Suportados",
+        "pdf_docs": "Documentos PDF",
+        "all_files": "Todos os Arquivos",
+        "batch_tab_headless_warning": "⚠️ **Aviso:** O processamento de pastas locais (Lote) está desativado em modo servidor (VPS/Docker) pois requer acesso ao sistema de arquivos do servidor. Para processar múltiplos arquivos em lote na nuvem, utilize a aba **Dropbox**, que oferece navegação de pastas e processamento incremental seguro.",
+        "batch_tab_info": "ℹ️ Selecione uma **PASTA** para converter TODOS os arquivos contidos nela (Recursivo).",
+        "batch_tab_select_btn": "📂 Selecionar Pasta",
+        "batch_tab_no_selection": "Nenhuma pasta selecionada.",
+        "semantic_index_title": "📚 Índice Semântico (RLM)",
+        "generate_index_local_btn": "🧠 Gerar Índice PDF desta Pasta",
+        "gemini_key_required_error": "⚠️ É necessário configurar a Chave API Gemini para usar o RLM.",
+        "index_running_spinner": "🧠 Analisando arquivos e gerando índice com RLM... (Isso pode demorar)",
+        "index_success": "✅ Índice Gerado com Sucesso! {} arquivo(s) indexado(s). Verifique os arquivos '_INDEX_CONTENT*.pdf' na pasta.",
+        "index_no_md_warning": "⚠️ Nenhum arquivo Markdown (.md) foi encontrado para indexar nesta pasta. Apenas arquivos convertidos para Markdown (.md) podem ser indexados. Converta seus arquivos primeiro nas abas correspondente!",
+        "dropbox_info": "ℹ️ Navegue pelas pastas e clique em 'Selecionar Esta Pasta' para converter.",
+        "dropbox_token_expander": "🔑 Configurar Token do Dropbox (Clique para expandir)",
+        "dropbox_token_instructions": "**Como obter um novo token:**\n1. Acesse [dropbox.com/developers/apps](https://www.dropbox.com/developers/apps).\n2. Clique no seu App (`carroll_rag` ou similar).\n3. Vá na aba **Settings**.\n4. Role até a seção **OAuth 2**.\n5. Clique no botão **Generate** (abaixo de *Generated access token*).\n6. Copie o código e cole abaixo.",
+        "dropbox_token_placeholder": "Cole seu Dropbox Access Token aqui:",
+        "dropbox_token_updated": "Token atualizado na sessão! (Reinicie o app se quiser salvar no .env permanentemente)",
+        "dropbox_token_missing": "⚠️ Token do Dropbox não encontrado. Por favor, insira acima.",
+        "dropbox_token_invalid": "O token atual parece inválido ou expirado. Use a área 'Configurar Token' acima para corrigir.",
+        "dropbox_current_folder": "Pasta Atual",
+        "dropbox_up_level": "⬆️ Subir Nível",
+        "dropbox_raiz": "Raiz (/)",
+        "dropbox_select_folder_btn": "✅ Selecionar Esta Pasta para Conversão",
+        "dropbox_selected_msg": "Pasta selecionada",
+        "dropbox_subfolders_caption": "Subpastas (clique para entrar):",
+        "dropbox_no_subfolders": "*(Nenhuma subpasta encontrada)*",
+        "dropbox_ready_msg": "🎯 **Pronto para processar:** {}",
+        "generate_index_dbx_btn": "🧠 Gerar Índice PDF (Dropbox)",
+        "dbx_index_running_spinner": "🧠 Preparando arquivos do Dropbox para indexação...",
+        "dbx_no_md_found": "Nenhum arquivo Markdown encontrado para indexar.",
+        "dbx_downloaded_for_analysis": "Baixados {} arquivos para análise.",
+        "dbx_rlm_processing_spinner": "🧠 RLM processando e gerando PDF...",
+        "dbx_index_no_md_warning": "⚠️ Nenhum arquivo Markdown (.md) foi encontrado para indexar nesta pasta. Apenas arquivos convertidos para Markdown (.md) podem ser indexados. Converta seus arquivos do Dropbox primeiro na aba acima!",
+        "dbx_no_index_generated": "Nenhum índice gerado. (Verifique logs/arquivos MD)",
+        "dbx_sending_toast": "Enviando",
+        "dbx_index_success": "✅ {} Índices Semânticos gerados e enviados para o Dropbox com sucesso!",
+        "youtube_info": "ℹ️ Transcrição salva na pasta `markdown_output`.",
+        "youtube_url_placeholder": "Cole uma URL do YouTube:",
+        "ia_config_subheader": "2. Configuração de IA (Opcional)",
+        "use_gemini_checkbox": "Usar Google Gemini AI? (Recomendado para PDFs escaneados ruins ou imagens complexas)",
+        "gemini_key_placeholder": "Cole sua Chave API Gemini:",
+        "gemini_key_valid": "✅ Chave Gemini validada!",
+        "gemini_force_checkbox": "Forçar uso do Gemini mesmo se Tesseract funcionar?",
+        "gemini_force_help": "Ignora OCR local e usa nuvem para tudo (custo/tempo maior).",
+        "gemini_key_invalid": "❌ Chave inválida.",
+        "gemini_key_warning": "⚠️ Insira a chave para ativar o modo IA.",
+        "overwrite_checkbox": "Sobrescrever arquivos Markdown existentes?",
+        "overwrite_help": "Se desmarcado, o sistema pulará arquivos que já possuem a versão _MD.md na pasta.",
+        "ready_to_process_info": "📁 **Pronto para Processar:** {}",
+        "start_processing_btn": "🚀 Iniciar Processamento",
+        "processing_youtube": "Processando YouTube",
+        "extracting_youtube": "Extraindo transcrição do YouTube...",
+        "youtube_transcription_success": "✅ Transcrição concluída!",
+        "youtube_transcription_error": "❌ Falha ao obter transcrição. Verifique se o vídeo tem legendas.",
+        "youtube_url_invalid": "❌ URL do YouTube inválida.",
+        "mode_hybrid_upload": "Modo de Processamento: Híbrido (Upload Web + Nuvem Gemini)",
+        "mode_local_upload": "Modo de Processamento: 100% Local (Upload Web + MarkItDown/Tesseract)",
+        "processing_upload": "Processando Upload Web...",
+        "upload_success": "✅ Upload processado com sucesso!",
+        "mode_hybrid_local": "Modo de Processamento: Híbrido (Local + Nuvem Gemini)",
+        "mode_local_local": "Modo de Processamento: 100% Local (MarkItDown/Tesseract)",
+        "processing_local": "Processando Arquivo Local...",
+        "mode_hybrid_batch": "Modo Batch: Híbrido (Local + Nuvem Gemini)",
+        "mode_local_batch": "Modo Batch: 100% Local",
+        "mode_hybrid_dropbox": "Modo Dropbox: Híbrido (Download -> Process -> Upload)",
+        "mode_local_dropbox": "Modo Dropbox: 100% Local (Download -> Process -> Upload)",
+        "processing_done_subheader": "✅ Processamento Concluído",
+        "preview_title": "### Pré-visualização do Conteúdo (Markdown)",
+        "extracted_content_label": "Conteúdo Extraído",
+        "download_md_btn": "⬇️ Baixar Arquivo Markdown",
+        "clean_old_outputs_btn": "🗑️ Limpar Arquivos de Saída Antigos",
+        "clean_success": "Pasta de saída limpa com sucesso!",
+        "clean_empty_info": "Nenhum arquivo para limpar na pasta de saída.",
+        "saved_locally_caption": "Arquivo salvo localmente no servidor em: {}",
+        "scanning_files": "🔍 Varrendo arquivos...",
+        "no_supported_files_found": "Nenhum arquivo suportado encontrado nesta pasta.",
+        "found_incompatible_files": "📂 Encontrados {} arquivos incompatíveis para conversão.",
+        "stop_batch_btn": "🛑 Parar Processamento em Lote",
+        "stop_dbx_btn": "🛑 Parar Dropbox Batch",
+        "batch_stopped_by_user": "Processamento interrompido pelo usuário.",
+        "batch_skipping_existing": "⏩ Pulando (Já existe): {}",
+        "batch_processing_file": "Processando [{}/{}]: {}...",
+        "batch_completed_msg": "✅ Concluído! Processados: {}. Pulados: {}. Erros: {}.",
+        "dbx_token_missing_error": "Token do Dropbox não encontrado.",
+        "dbx_scanning_files": "☁️ Varrendo arquivos no Dropbox...",
+        "dbx_no_supported_files": "Nenhum arquivo suportado encontrado em '{}'.",
+        "dbx_found_files": "☁️ Encontrados {} arquivos no Dropbox.",
+        "dbx_stopping": "Interrompido.",
+        "dbx_skipping_existing": "⏩ Pulando (Já existe): {}",
+        "dbx_download_processing": "Baixando e Processando [{}/{}]: {}...",
+        "dbx_uploading": "⬆️ Fazendo Upload",
+        "dbx_upload_error": "Erro no upload de {}",
+        "dbx_batch_completed_msg": "✅ Dropbox Batch Concluído! Sucessos: {}. Pulados: {}. Erros: {}.",
+        "pdf_digital_detected": "✅ PDF digital detectado. Usando MarkItDown/Fallback para extração estruturada (Local).",
+        "pdf_scanned_detected": "⚠️ PDF escaneado detectado. Tentando OCR local (Tesseract) primeiro.",
+        "tesseract_success": "✅ OCR Local (Tesseract) concluído. Verifique a qualidade.",
+        "initiating_gemini_ocr": "Iniciando OCR e estruturação via Gemini (custo/nuvem).",
+        "gemini_processing_success": "✅ Processamento Gemini concluído.",
+        "gemini_processing_failure": "❌ Processamento Gemini falhou (Bloqueio de Conteúdo ou Erro de API).",
+        "tesseract_failure": "❌ OCR Tesseract falhou.",
+        "trying_gemini_fallback": "Tentando OCR e estruturação via Gemini (custo/nuvem) as fallback.",
+        "pdf_processing_failure": "❌ Não foi possível processar o PDF. Chave Gemini não fornecida para fallback.",
+        "markitdown_extraction": "✅ Arquivo {} detectado. Extração estruturada via MarkItDown.",
+        "unsupported_format": "❌ Formato de arquivo '{}' não suportado.",
+        "file_not_found": "❌ Arquivo não encontrado no caminho especificado.",
+        "saving_local_mode": "💾 Modo Local: Salvando saída na mesma pasta: {}",
+        "saving_upload_mode": "💾 Processando upload temporário e salvando resultado em: {}",
+        "saving_upload_mode_simple": "📂 Modo Upload: Salvando saída em {}"
+    },
+    "en": {
+        "page_title": "Document Processor to Markdown",
+        "login_subtitle": "Secure Document Processing System",
+        "username": "Username",
+        "username_placeholder": "Enter your username...",
+        "password": "Password",
+        "password_placeholder": "Enter your password...",
+        "enter": "Sign In",
+        "login_success": "Login successful! Redirecting...",
+        "login_error": "Invalid username or password. Please try again.",
+        "forced_change_pwd_title": "🔒 Mandatory Password Change",
+        "forced_change_pwd_subtitle": "This is your first access or your password has been reset. For security reasons, you must choose a strong password.",
+        "new_pwd": "New Password",
+        "new_pwd_placeholder": "Enter a new password...",
+        "confirm_pwd": "Confirm New Password",
+        "confirm_pwd_placeholder": "Repeat new password...",
+        "change_pwd_btn": "Change Password and Sign In",
+        "pwd_blank_error": "New password cannot be blank.",
+        "pwd_min_len_error": "Password must be at least 6 characters long for security.",
+        "pwd_default_error": "New password cannot be the default password '123456'. Set a more secure password.",
+        "pwd_mismatch_error": "The passwords entered do not match. Please try again.",
+        "pwd_change_success": "Password changed successfully! Accessing system...",
+        "system_error_login": "Internal system error. Please try logging in again.",
+        "connected_user": "👤 Connected User",
+        "role_admin": "🟢 Administrator",
+        "role_user": "🔵 Standard User",
+        "label_name": "Name",
+        "label_profile": "Profile",
+        "security_alert": "⚠️ **SECURITY ALERT:**\nThe password for the 'admin' user is still the temporary default password ('admin123'). Please change it immediately in the User Management tab!",
+        "navigation": "Navigation",
+        "nav_process_docs": "📄 Process Documents",
+        "nav_user_mgmt": "👥 User Management",
+        "logout_btn": "🚪 Sign Out",
+        "logout_success": "Logged out successfully!",
+        "user_mgmt_title": "👥 User Management",
+        "tab_registered_users": "📋 Registered Users",
+        "tab_create_user": "➕ Create New User",
+        "status_badge_admin": "🟢 Admin",
+        "status_badge_user": "🔵 User",
+        "status_badge_pwd_pending": " &nbsp;&nbsp;&nbsp; ⚠️ *Password change pending*",
+        "created_at": "Created at",
+        "updated_at": "Updated at",
+        "edit_user_help": "Edit User",
+        "reset_pwd_help": "Reset Password",
+        "delete_user_help": "Delete User",
+        "edit_user_section_title": "##### Edit User",
+        "new_username_label": "New username",
+        "admin_checkbox_label": "Administrator?",
+        "confirm_edit_btn": "Confirm Edit",
+        "reset_pwd_section_title": "##### Reset Password",
+        "reset_pwd_confirm_btn": "Confirm New Password",
+        "delete_user_warning": "Are you sure you want to delete user `{}`? This action cannot be undone.",
+        "delete_user_yes": "Yes, Delete",
+        "create_user_info": "ℹ️ New users are automatically created with the temporary password **123456** and will be forced to change it on their first access for security reasons.",
+        "new_username_placeholder": "E.g., john.doe",
+        "admin_privileges_checkbox": "Grant Administrator privileges?",
+        "create_user_btn": "Register User",
+        "process_docs_title": "📄 Document Processor to Markdown",
+        "input_data_subheader": "1. Data Input",
+        "tab_local_file": "📂 Local File",
+        "tab_batch_folder": "📦 Folder (Batch)",
+        "tab_dropbox": "☁️ Dropbox",
+        "tab_youtube": "📺 YouTube",
+        "local_tab_headless_info": "ℹ️ Upload a file to convert and generate the Markdown version for download.",
+        "local_tab_headless_uploader": "Select a file to convert:",
+        "local_tab_info": "ℹ️ Select a file to save the Markdown version in the **same original folder**.",
+        "local_tab_select_btn": "📂 Select File",
+        "local_tab_no_selection": "No file selected.",
+        "all_supported": "All Supported",
+        "pdf_docs": "PDF Documents",
+        "all_files": "All Files",
+        "batch_tab_headless_warning": "⚠️ **Warning:** Local folder processing (Batch) is disabled in server mode (VPS/Docker) as it requires access to the server's file system. To process multiple files in batch on the cloud, use the **Dropbox** tab, which offers safe folder navigation and incremental processing.",
+        "batch_tab_info": "ℹ️ Select a **FOLDER** to convert ALL files contained within it (Recursive).",
+        "batch_tab_select_btn": "📂 Select Folder",
+        "batch_tab_no_selection": "No folder selected.",
+        "semantic_index_title": "📚 Semantic Index (RLM)",
+        "generate_index_local_btn": "🧠 Generate PDF Index of this Folder",
+        "gemini_key_required_error": "⚠️ Configuring the Gemini API Key is required to use RLM.",
+        "index_running_spinner": "🧠 Analyzing files and generating index with RLM... (This may take a while)",
+        "index_success": "✅ Index Generated Successfully! {} file(s) indexed. Check the '_INDEX_CONTENT*.pdf' files in the folder.",
+        "index_no_md_warning": "⚠️ No Markdown (.md) files were found to index in this folder. Only files converted to Markdown (.md) can be indexed. Convert your files first in the corresponding tabs!",
+        "dropbox_info": "ℹ️ Navigate through folders and click 'Select This Folder' to convert.",
+        "dropbox_token_expander": "🔑 Configure Dropbox Token (Click to expand)",
+        "dropbox_token_instructions": "**How to obtain a new token:**\n1. Access [dropbox.com/developers/apps](https://www.dropbox.com/developers/apps).\n2. Click on your App (`carroll_rag` or similar).\n3. Go to the **Settings** tab.\n4. Scroll down to the **OAuth 2** section.\n5. Click on the **Generate** button (under *Generated access token*).\n6. Copy the code and paste it below.",
+        "dropbox_token_placeholder": "Paste your Dropbox Access Token here:",
+        "dropbox_token_updated": "Token updated in session! (Restart app to save in .env permanently)",
+        "dropbox_token_missing": "⚠️ Dropbox Token not found. Please insert it above.",
+        "dropbox_token_invalid": "The current token seems invalid or expired. Use the 'Configure Token' area above to fix it.",
+        "dropbox_current_folder": "Current Folder",
+        "dropbox_up_level": "⬆️ Go Up One Level",
+        "dropbox_raiz": "Root (/)",
+        "dropbox_select_folder_btn": "✅ Select This Folder for Conversion",
+        "dropbox_selected_msg": "Folder selected",
+        "dropbox_subfolders_caption": "Subfolders (click to enter):",
+        "dropbox_no_subfolders": "*(No subfolders found)*",
+        "dropbox_ready_msg": "🎯 **Ready to process:** {}",
+        "generate_index_dbx_btn": "🧠 Generate PDF Index (Dropbox)",
+        "dbx_index_running_spinner": "🧠 Preparing Dropbox files for indexing...",
+        "dbx_no_md_found": "No Markdown files found to index.",
+        "dbx_downloaded_for_analysis": "Downloaded {} files for analysis.",
+        "dbx_rlm_processing_spinner": "🧠 RLM processing and generating PDF...",
+        "dbx_index_no_md_warning": "⚠️ No Markdown (.md) files were found to index in this folder. Only files converted to Markdown (.md) can be indexed. Convert your Dropbox files first in the tab above!",
+        "dbx_no_index_generated": "No index generated. (Check logs/MD files)",
+        "dbx_sending_toast": "Uploading",
+        "dbx_index_success": "✅ {} Semantic Indexes successfully generated and uploaded to Dropbox!",
+        "youtube_info": "ℹ️ Transcript saved in folder `markdown_output`.",
+        "youtube_url_placeholder": "Paste a YouTube URL:",
+        "ia_config_subheader": "2. AI Configuration (Optional)",
+        "use_gemini_checkbox": "Use Google Gemini AI? (Recommended for poor quality scanned PDFs or complex images)",
+        "gemini_key_placeholder": "Paste your Gemini API Key:",
+        "gemini_key_valid": "✅ Gemini Key validated!",
+        "gemini_force_checkbox": "Force Gemini usage even if Tesseract works?",
+        "gemini_force_help": "Bypasses local OCR and uses the cloud for everything (higher cost/time).",
+        "gemini_key_invalid": "❌ Invalid Key.",
+        "gemini_key_warning": "⚠️ Insert the key to enable AI mode.",
+        "overwrite_checkbox": "Overwrite existing Markdown files?",
+        "overwrite_help": "If unchecked, the system will skip files that already have an _MD.md version in the folder.",
+        "ready_to_process_info": "📁 **Ready to Process:** {}",
+        "start_processing_btn": "🚀 Start Processing",
+        "processing_youtube": "Processing YouTube",
+        "extracting_youtube": "Extracting YouTube transcript...",
+        "youtube_transcription_success": "✅ Transcription completed!",
+        "youtube_transcription_error": "❌ Failed to obtain transcription. Verify if the video has subtitles.",
+        "youtube_url_invalid": "❌ Invalid YouTube URL.",
+        "mode_hybrid_upload": "Processing Mode: Hybrid (Web Upload + Gemini Cloud)",
+        "mode_local_upload": "Processing Mode: 100% Local (Web Upload + MarkItDown/Tesseract)",
+        "processing_upload": "Processing Web Upload...",
+        "upload_success": "✅ Upload processed successfully!",
+        "mode_hybrid_local": "Processing Mode: Hybrid (Local + Gemini Cloud)",
+        "mode_local_local": "Processing Mode: 100% Local (MarkItDown/Tesseract)",
+        "processing_local": "Processing Local File...",
+        "mode_hybrid_batch": "Batch Mode: Hybrid (Local + Gemini Cloud)",
+        "mode_local_batch": "Batch Mode: 100% Local",
+        "mode_hybrid_dropbox": "Dropbox Mode: Hybrid (Download -> Process -> Upload)",
+        "mode_local_dropbox": "Dropbox Mode: 100% Local (Download -> Process -> Upload)",
+        "processing_done_subheader": "✅ Processing Completed",
+        "preview_title": "### Content Preview (Markdown)",
+        "extracted_content_label": "Extracted Content",
+        "download_md_btn": "⬇️ Download Markdown File",
+        "clean_old_outputs_btn": "🗑️ Clean Old Output Files",
+        "clean_success": "Output folder successfully cleaned!",
+        "clean_empty_info": "No files to clean in the output folder.",
+        "saved_locally_caption": "File saved locally on the server at: {}",
+        "scanning_files": "🔍 Scanning files...",
+        "no_supported_files_found": "No supported files found in this folder.",
+        "found_incompatible_files": "📂 Found {} incompatible files for conversion.",
+        "stop_batch_btn": "🛑 Stop Batch Processing",
+        "stop_dbx_btn": "🛑 Stop Dropbox Batch",
+        "batch_stopped_by_user": "Processing stopped by user.",
+        "batch_skipping_existing": "⏩ Skipping (Already exists): {}",
+        "batch_processing_file": "Processing [{}/{}]: {}...",
+        "batch_completed_msg": "✅ Completed! Processed: {}. Skipped: {}. Errors: {}.",
+        "dbx_token_missing_error": "Dropbox Token not found.",
+        "dbx_scanning_files": "☁️ Scanning files on Dropbox...",
+        "dbx_no_supported_files": "No supported files found in '{}'.",
+        "dbx_found_files": "☁️ Found {} files on Dropbox.",
+        "dbx_stopping": "Stopped.",
+        "dbx_skipping_existing": "⏩ Skipping (Already exists): {}",
+        "dbx_download_processing": "Downloading and Processing [{}/{}]: {}...",
+        "dbx_uploading": "⬆️ Uploading",
+        "dbx_upload_error": "Upload error for {}",
+        "dbx_batch_completed_msg": "✅ Dropbox Batch Completed! Successes: {}. Skipped: {}. Errors: {}.",
+        "pdf_digital_detected": "✅ Digital PDF detected. Using MarkItDown/Fallback for structured extraction (Local).",
+        "pdf_scanned_detected": "⚠️ Scanned PDF detected. Attempting local OCR (Tesseract) first.",
+        "tesseract_success": "✅ Local OCR (Tesseract) completed. Verify the quality.",
+        "initiating_gemini_ocr": "Initiating OCR and structuring via Gemini (cost/cloud).",
+        "gemini_processing_success": "✅ Gemini processing completed.",
+        "gemini_processing_failure": "❌ Gemini processing failed (Content Blocked or API Error).",
+        "tesseract_failure": "❌ Tesseract OCR failed.",
+        "trying_gemini_fallback": "Attempting OCR and structuring via Gemini (cost/cloud) as fallback.",
+        "pdf_processing_failure": "❌ Could not process PDF. Gemini key not provided for fallback.",
+        "markitdown_extraction": "✅ File {} detected. Structured extraction via MarkItDown.",
+        "unsupported_format": "❌ Unsupported file format '{}'.",
+        "file_not_found": "❌ File not found at the specified path.",
+        "saving_local_mode": "💾 Local Mode: Saving output in the same folder: {}",
+        "saving_upload_mode": "💾 Processing temporary upload and saving result in: {}",
+        "saving_upload_mode_simple": "📂 Upload Mode: Saving output in {}"
+    }
+}
+
+def t(key, *args):
+    lang = st.session_state.get('lang', 'pt')
+    text = TRANSLATIONS.get(lang, TRANSLATIONS['pt']).get(key, key)
+    if args:
+        return text.format(*args)
+    return text
+
 # --- Configuração da Interface ---
 st.set_page_config(
-    page_title="Processador de Documentos para Markdown",
+    page_title=t("page_title"),
     layout="wide"
 )
+
 
 # Inicializa o banco de dados SQLite de usuários
 auth.init_db()
 
 # --- Inicialização de Estado de Autenticação ---
+if 'lang' not in st.session_state:
+    st.session_state['lang'] = 'pt'
 if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = False
 if 'user_id' not in st.session_state:
@@ -90,12 +462,12 @@ def show_login_screen():
     st.markdown('<div class="login-wrapper">', unsafe_allow_html=True)
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
     st.markdown('<h1 class="login-title">📄 PDFtoMD</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="login-subtitle">Sistema Seguro de Processamento de Documentos</p>', unsafe_allow_html=True)
+    st.markdown(f'<p class="login-subtitle">{t("login_subtitle")}</p>', unsafe_allow_html=True)
     
     with st.form("login_form", clear_on_submit=False):
-        username = st.text_input("Usuário", placeholder="Digite seu usuário...")
-        password = st.text_input("Senha", type="password", placeholder="Digite sua senha...")
-        submit_button = st.form_submit_button("Entrar", use_container_width=True)
+        username = st.text_input(t("username"), placeholder=t("username_placeholder"))
+        password = st.text_input(t("password"), type="password", placeholder=t("password_placeholder"))
+        submit_button = st.form_submit_button(t("enter"), use_container_width=True)
         
         if submit_button:
             user = auth.authenticate_user(username, password)
@@ -105,10 +477,10 @@ def show_login_screen():
                 st.session_state['username'] = user['username']
                 st.session_state['is_admin'] = user['is_admin']
                 st.session_state['needs_password_change'] = user['needs_password_change']
-                st.success("Login efetuado com sucesso! Redirecionando...")
+                st.success(t("login_success"))
                 st.rerun()
             else:
-                st.error("Usuário ou senha inválidos. Tente novamente.")
+                st.error(t("login_error"))
                 
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
@@ -149,35 +521,35 @@ def show_change_password_on_first_login_screen():
     
     st.markdown('<div class="change-pwd-wrapper">', unsafe_allow_html=True)
     st.markdown('<div class="change-pwd-container">', unsafe_allow_html=True)
-    st.markdown('<h2 class="change-pwd-title">🔒 Alteração de Senha Obrigatória</h2>', unsafe_allow_html=True)
-    st.markdown('<p class="change-pwd-subtitle">Este é o seu primeiro acesso ou sua senha foi resetada. Por questões de segurança, você deve escolher uma senha forte.</p>', unsafe_allow_html=True)
+    st.markdown(f'<h2 class="change-pwd-title">{t("forced_change_pwd_title")}</h2>', unsafe_allow_html=True)
+    st.markdown(f'<p class="change-pwd-subtitle">{t("forced_change_pwd_subtitle")}</p>', unsafe_allow_html=True)
     
     with st.form("forced_change_pwd_form", clear_on_submit=False):
-        new_pwd = st.text_input("Nova Senha", type="password", placeholder="Digite uma nova senha...")
-        confirm_pwd = st.text_input("Confirme a Nova Senha", type="password", placeholder="Repita a nova senha...")
-        submit_btn = st.form_submit_button("Alterar Senha e Entrar", use_container_width=True)
+        new_pwd = st.text_input(t("new_pwd"), type="password", placeholder=t("new_pwd_placeholder"))
+        confirm_pwd = st.text_input(t("confirm_pwd"), type="password", placeholder=t("confirm_pwd_placeholder"))
+        submit_btn = st.form_submit_button(t("change_pwd_btn"), use_container_width=True)
         
         if submit_btn:
             if not new_pwd:
-                st.error("A nova senha não pode estar em branco.")
+                st.error(t("pwd_blank_error"))
             elif len(new_pwd) < 6:
-                st.error("A senha deve ter pelo menos 6 caracteres por segurança.")
+                st.error(t("pwd_min_len_error"))
             elif new_pwd == "123456":
-                st.error("A nova senha não pode ser a senha padrão '123456'. Defina uma senha mais segura.")
+                st.error(t("pwd_default_error"))
             elif new_pwd != confirm_pwd:
-                st.error("As senhas digitadas não coincidem. Tente novamente.")
+                st.error(t("pwd_mismatch_error"))
             else:
                 user_id = st.session_state.get('user_id')
                 if user_id:
                     success, msg = auth.change_password_on_first_login(user_id, new_pwd)
                     if success:
                         st.session_state['needs_password_change'] = False
-                        st.success("Senha alterada com sucesso! Acessando o sistema...")
+                        st.success(t("pwd_change_success"))
                         st.rerun()
                     else:
                         st.error(msg)
                 else:
-                    st.error("Erro interno do sistema. Por favor, tente fazer login novamente.")
+                    st.error(t("system_error_login"))
                     st.session_state['authenticated'] = False
                     st.rerun()
                     
@@ -292,45 +664,45 @@ def run_file_pipeline(input_path_str: str, output_path_str: str, gemini_key: str
         is_digital = is_digital_pdf(input_path_str)
         
         if is_digital:
-            st.success("✅ PDF digital detectado. Usando MarkItDown/Fallback para extração estruturada (Local).")
+            st.success(t("pdf_digital_detected"))
             extract_structured_markitdown(input_path_str, output_path_str)
             
         else:
-            st.warning("⚠️ PDF escaneado detectado. Tentando OCR local (Tesseract) primeiro.")
+            st.warning(t("pdf_scanned_detected"))
             
             # TENTATIVA 1: OCR LOCAL (Tesseract)
             tesseract_success = ocr_local_tesseract(input_path_str, output_path_str)
             
             if tesseract_success:
-                st.success("✅ OCR Local (Tesseract) concluído. Verifique a qualidade.")
+                st.success(t("tesseract_success"))
                 
                 if gemini_key and st.session_state.get('force_gemini', False):
-                    st.info("Iniciando OCR e estruturação via Gemini (custo/nuvem).")
+                    st.info(t("initiating_gemini_ocr"))
                     success = extract_ocr_to_markdown_gemini(input_path_str, output_path_str, gemini_key)
                     if success:
-                        st.success("✅ Processamento Gemini concluído.")
+                        st.success(t("gemini_processing_success"))
                     else:
-                        st.error("❌ Processamento Gemini falhou (Bloqueio de Conteúdo ou Erro de API).")
+                        st.error(t("gemini_processing_failure"))
             
             elif gemini_key:
-                st.error("❌ OCR Tesseract falhou.")
-                st.info("Tentando OCR e estruturação via Gemini (custo/nuvem) como fallback.")
+                st.error(t("tesseract_failure"))
+                st.info(t("trying_gemini_fallback"))
                 success = extract_ocr_to_markdown_gemini(input_path_str, output_path_str, gemini_key)
                 if success:
-                    st.success("✅ Processamento Gemini concluído.")
+                    st.success(t("gemini_processing_success"))
                 else:
-                    st.error("❌ Processamento Gemini falhou (Bloqueio de Conteúdo ou Erro de API).")
+                    st.error(t("gemini_processing_failure"))
             else:
-                st.error("❌ Não foi possível processar o PDF. Chave Gemini não fornecida para fallback.")
+                st.error(t("pdf_processing_failure"))
                 return False
                     
     elif file_extension in ['.docx', '.pptx', '.xlsx', '.doc', '.xls', '.csv', '.json', '.xml', '.html', '.zip', '.mp3', '.wav', '.jpg', '.png', '.epub']:
         # NOVA LÓGICA: Extração direta via MarkItDown para outros formatos
-        st.success(f"✅ Arquivo {file_extension} detectado. Extração estruturada via MarkItDown.")
+        st.success(t("markitdown_extraction").format(file_extension))
         extract_structured_markitdown(input_path_str, output_path_str) 
         
     else:
-        st.error(f"❌ Formato de arquivo '{file_extension}' não suportado.")
+        st.error(t("unsupported_format").format(file_extension))
         return False
 
     return True
@@ -341,13 +713,13 @@ def process_local_file(local_path_str, gemini_key):
     """
     path = Path(local_path_str).resolve()
     if not path.exists():
-        st.error("❌ Arquivo não encontrado no caminho especificado.")
+        st.error(t("file_not_found"))
         return None
         
     # Salva na mesma pasta: NomeOriginalMD.md
     output_path = path.parent / f"{path.stem}MD.md"
     
-    st.info(f"💾 Modo Local: Salvando saída na mesma pasta: {output_path}")
+    st.info(t("saving_local_mode", output_path))
     
     success = run_file_pipeline(str(path), str(output_path), gemini_key)
     return output_path if success else None
@@ -372,7 +744,7 @@ def process_uploaded_file(uploaded_file, gemini_key):
     
     output_md_path = output_dir / f"{temp_file_path.prefix if hasattr(temp_file_path, 'prefix') else temp_file_path.stem}MD.md"
     
-    st.info(f"💾 Processando upload temporário e salvando resultado em: {output_md_path}")
+    st.info(t("saving_upload_mode", output_md_path))
     
     # 3. Executa o pipeline
     success = run_file_pipeline(str(temp_file_path), str(output_md_path), gemini_key)
@@ -402,17 +774,17 @@ def process_batch_directory(directory_path_str: str, gemini_key: str, overwrite:
     
     # 1. Varredura
     status_text = st.empty()
-    status_text.info("🔍 Varrendo arquivos...")
+    status_text.info(t("scanning_files"))
     
     for path in root_dir.rglob('*'):
         if path.is_file() and path.suffix.lower() in supported_extensions:
             files_to_process.append(path)
             
     if not files_to_process:
-        st.warning("Nenhum arquivo suportado encontrado nesta pasta.")
+        st.warning(t("no_supported_files_found"))
         return
 
-    st.success(f"📂 Encontrados {len(files_to_process)} arquivos incompatíveis para conversão.")
+    st.success(t("found_incompatible_files").format(len(files_to_process)))
     
     # 2. Barra de Progresso
     progress_bar = st.progress(0)
@@ -422,11 +794,11 @@ def process_batch_directory(directory_path_str: str, gemini_key: str, overwrite:
     skipped_count = 0 # NOVO
     errors_count = 0
     
-    stop_button = st.button("🛑 Parar Processamento em Lote")
+    stop_button = st.button(t("stop_batch_btn"))
     
     for i, file_path in enumerate(files_to_process):
         if stop_button:
-            st.warning("Processamento interrompido pelo usuário.")
+            st.warning(t("batch_stopped_by_user"))
             break
             
         rel_path = file_path.relative_to(root_dir)
@@ -436,13 +808,13 @@ def process_batch_directory(directory_path_str: str, gemini_key: str, overwrite:
         
         # LÓGICA INCREMENTAL
         if output_path.exists() and not overwrite:
-            log_area.code(f"⏩ Pulando (Já existe): {rel_path}")
+            log_area.code(t("batch_skipping_existing", rel_path))
             skipped_count += 1
             progress = (i + 1) / len(files_to_process)
             progress_bar.progress(progress)
             continue
 
-        log_area.code(f"Processando [{i+1}/{len(files_to_process)}]: {rel_path}...")
+        log_area.code(t("batch_processing_file", i+1, len(files_to_process), rel_path))
 
         try:
              # Chama Pipeline
@@ -459,7 +831,7 @@ def process_batch_directory(directory_path_str: str, gemini_key: str, overwrite:
         progress = (i + 1) / len(files_to_process)
         progress_bar.progress(progress)
     
-    status_text.success(f"✅ Concluído! Processados: {processed_count}. Pulados: {skipped_count}. Erros: {errors_count}.")
+    status_text.success(t("batch_completed_msg", processed_count, skipped_count, errors_count))
     st.balloons()
 
 
@@ -471,7 +843,7 @@ def process_dropbox_batch(folder_path_str: str, gemini_key: str, overwrite: bool
     """
     token = st.session_state.get('dropbox_token')
     if not token:
-        st.error("Token do Dropbox não encontrado.")
+        st.error(t("dbx_token_missing_error"))
         return
 
     dbx = DropboxHandler(token)
@@ -487,19 +859,19 @@ def process_dropbox_batch(folder_path_str: str, gemini_key: str, overwrite: bool
     # 2. Varredura
     supported_extensions = {'.pdf', '.docx', '.pptx', '.xlsx', '.doc', '.xls', '.csv', '.json', '.xml', '.html', '.zip', '.mp3', '.wav', '.jpg', '.png', '.epub'}
     
-    with st.spinner("☁️ Varrendo arquivos no Dropbox..."):
+    with st.spinner(t("dbx_scanning_files")):
         file_entries = dbx.list_files_recursive(folder_path_str, supported_extensions)
         
     if not file_entries:
-        st.warning(f"Nenhum arquivo suportado encontrado em '{folder_path_str}'.")
+        st.warning(t("dbx_no_supported_files").format(folder_path_str))
         return
         
-    st.success(f"☁️ Encontrados {len(file_entries)} arquivos no Dropbox.")
+    st.success(t("dbx_found_files").format(len(file_entries)))
     
     # 3. Processamento
     progress_bar = st.progress(0)
     log_area = st.empty()
-    stop_button = st.button("🛑 Parar Dropbox Batch")
+    stop_button = st.button(t("stop_dbx_btn"))
     
     temp_dir = Path("temp_dropbox")
     temp_dir.mkdir(exist_ok=True)
@@ -510,7 +882,7 @@ def process_dropbox_batch(folder_path_str: str, gemini_key: str, overwrite: bool
     
     for i, entry in enumerate(file_entries):
         if stop_button:
-            st.warning("Interrompido.")
+            st.warning(t("dbx_stopping"))
             break
             
         local_output_name = f"{Path(entry.name).stem}MD.md"
@@ -523,12 +895,12 @@ def process_dropbox_batch(folder_path_str: str, gemini_key: str, overwrite: bool
         if not overwrite:
             # Verifica se existe chamando metadados
             if dbx.file_exists(dropbox_output_path):
-                 log_area.code(f"⏩ Pulando (Já existe): {entry.path_display}")
+                 log_area.code(t("dbx_skipping_existing", entry.path_display))
                  skipped_count += 1
                  progress_bar.progress((i + 1) / len(file_entries))
                  continue
 
-        log_area.code(f"Baixando e Processando [{i+1}/{len(file_entries)}]: {entry.path_display}...")
+        log_area.code(t("dbx_download_processing", i+1, len(file_entries), entry.path_display))
         
         # Paths do download temporário
         local_input = temp_dir / entry.name
@@ -540,12 +912,12 @@ def process_dropbox_batch(folder_path_str: str, gemini_key: str, overwrite: bool
                 # Converte
                 if run_file_pipeline(str(local_input), str(local_output), gemini_key):
                     # Upload
-                    log_area.code(f"⬆️ Fazendo Upload: {dropbox_output_path}")
+                    log_area.code(t("dbx_uploading") + f": {dropbox_output_path}")
                     if dbx.upload_file(str(local_output), dropbox_output_path):
                          processed_count += 1
                     else:
                          errors_count += 1
-                         st.error(f"Erro no upload de {entry.name}")
+                         st.error(t("dbx_upload_error").format(entry.name))
                 else:
                     errors_count += 1
             else:
@@ -560,7 +932,7 @@ def process_dropbox_batch(folder_path_str: str, gemini_key: str, overwrite: bool
 
         progress_bar.progress((i + 1) / len(file_entries))
         
-    st.success(f"✅ Dropbox Batch Concluído! Sucessos: {processed_count}. Pulados: {skipped_count}. Erros: {errors_count}.")
+    st.success(t("dbx_batch_completed_msg", processed_count, skipped_count, errors_count))
     st.balloons()
 
 
@@ -584,7 +956,7 @@ def process_uploaded_file(uploaded_file, gemini_key): # RENOMEADO
     # NAMING CHANGE: NomeOriginalMD.md
     output_md_path = output_dir / f"{pdf_path.stem}MD.md"
     
-    st.info(f"📂 Modo Upload: Salvando saída em {output_md_path}")
+    st.info(t("saving_upload_mode_simple", output_md_path))
     
     # 3. Executar Pipeline
     success = run_file_pipeline(str(pdf_path), str(output_md_path), gemini_key)
@@ -597,41 +969,54 @@ def process_uploaded_file(uploaded_file, gemini_key): # RENOMEADO
 
 # --- Barra Lateral (Controle de Navegação e Logout) ---
 with st.sidebar:
-    st.markdown("### 👤 Usuário Conectado")
-    role_badge = "🟢 Administrador" if st.session_state['is_admin'] else "🔵 Usuário Padrão"
-    st.markdown(f"**Nome:** `{st.session_state['username']}`")
-    st.markdown(f"**Perfil:** {role_badge}")
+    st.markdown("### " + t("connected_user"))
+    role_badge = t("role_admin") if st.session_state['is_admin'] else t("role_user")
+    st.markdown(f"**{t('label_name')}:** `{st.session_state['username']}`")
+    st.markdown(f"**{t('label_profile')}:** {role_badge}")
     
     # Alerta de Segurança se o admin estiver usando a senha padrão
     if st.session_state['username'] == 'admin':
         if auth.authenticate_user("admin", "admin123"):
-            st.warning("⚠️ **ALERTA DE SEGURANÇA:**\nA senha do usuário 'admin' ainda é a senha padrão provisória ('admin123'). Por favor, altere-a imediatamente na aba de Gestão de Usuários!")
+            st.warning(t("security_alert"))
             
     st.markdown("---")
     
     # Navegação de Telas (Somente visível para Admin)
-    app_mode = "📄 Processar Documentos"
+    app_mode = t("nav_process_docs")
     if st.session_state['is_admin']:
         app_mode = st.radio(
-            "Navegação",
-            ["📄 Processar Documentos", "👥 Gestão de Usuários"],
+            t("navigation"),
+            [t("nav_process_docs"), t("nav_user_mgmt")],
             key="nav_mode"
         )
     
     st.markdown("---")
-    if st.button("🚪 Sair do Sistema", use_container_width=True):
+    # Language Selector UI
+    lang_choice = st.selectbox(
+        "🌐 Idioma / Language",
+        ["Português", "English"],
+        index=0 if st.session_state.get('lang', 'pt') == 'pt' else 1,
+        key="lang_choice_selectbox"
+    )
+    new_lang = "pt" if lang_choice == "Português" else "en"
+    if new_lang != st.session_state.get('lang', 'pt'):
+        st.session_state['lang'] = new_lang
+        st.rerun()
+
+    st.markdown("---")
+    if st.button(t("logout_btn"), use_container_width=True):
         st.session_state['authenticated'] = False
         st.session_state['username'] = ""
         st.session_state['is_admin'] = False
-        st.success("Logout efetuado!")
+        st.success(t("logout_success"))
         st.rerun()
 
 # --- Conteúdo Principal dependendo da Seleção ---
-if app_mode == "👥 Gestão de Usuários":
-    st.title("👥 Gestão de Usuários")
+if app_mode == t("nav_user_mgmt"):
+    st.title(t("user_mgmt_title"))
     st.markdown("---")
     
-    tab_list, tab_create = st.tabs(["📋 Usuários Cadastrados", "➕ Criar Novo Usuário"])
+    tab_list, tab_create = st.tabs([t("tab_registered_users"), t("tab_create_user")])
     
     with tab_list:
         users = auth.list_users()
@@ -644,30 +1029,30 @@ if app_mode == "👥 Gestão de Usuários":
             with st.container(border=True):
                 col_info, col_actions = st.columns([2, 1], vertical_alignment="center")
                 with col_info:
-                    badge = "🟢 Admin" if u_admin else "🔵 Usuário"
-                    status_badge = " &nbsp;&nbsp;&nbsp; ⚠️ *Alteração de senha pendente*" if u.get('needs_password_change') else ""
-                    st.markdown(f"**Usuário:** `{u_name}` &nbsp;&nbsp;&nbsp; {badge}{status_badge}")
-                    st.caption(f"Criado em: {u['created_at']} | Atualizado em: {u['updated_at']}")
+                    badge = t("status_badge_admin") if u_admin else t("status_badge_user")
+                    status_badge = t("status_badge_pwd_pending") if u.get('needs_password_change') else ""
+                    st.markdown(f"**{t('username')}:** `{u_name}` &nbsp;&nbsp;&nbsp; {badge}{status_badge}")
+                    st.caption(f"{t('created_at')}: {u['created_at']} | {t('updated_at')}: {u['updated_at']}")
                 
                 with col_actions:
                     col_edit, col_pwd, col_del = st.columns(3)
                     
                     with col_edit:
-                        if st.button("✏️", key=f"edit_{u_id}", help="Editar Usuário"):
+                        if st.button("✏️", key=f"edit_{u_id}", help=t("edit_user_help")):
                             st.session_state[f"show_edit_{u_id}"] = not st.session_state.get(f"show_edit_{u_id}", False)
                             st.session_state[f"show_pwd_{u_id}"] = False
                             st.session_state[f"show_del_{u_id}"] = False
                             st.rerun()
                             
                     with col_pwd:
-                        if st.button("🔑", key=f"pwd_{u_id}", help="Redefinir Senha"):
+                        if st.button("🔑", key=f"pwd_{u_id}", help=t("reset_pwd_help")):
                             st.session_state[f"show_pwd_{u_id}"] = not st.session_state.get(f"show_pwd_{u_id}", False)
                             st.session_state[f"show_edit_{u_id}"] = False
                             st.session_state[f"show_del_{u_id}"] = False
                             st.rerun()
                             
                     with col_del:
-                        if st.button("🗑️", key=f"del_{u_id}", help="Excluir Usuário"):
+                        if st.button("🗑️", key=f"del_{u_id}", help=t("delete_user_help")):
                             st.session_state[f"show_del_{u_id}"] = not st.session_state.get(f"show_del_{u_id}", False)
                             st.session_state[f"show_edit_{u_id}"] = False
                             st.session_state[f"show_pwd_{u_id}"] = False
@@ -675,10 +1060,10 @@ if app_mode == "👥 Gestão de Usuários":
                 
                 # Seções expansíveis de ação
                 if st.session_state.get(f"show_edit_{u_id}", False):
-                    st.markdown("##### Editar Usuário")
-                    new_u_name = st.text_input("Novo nome de usuário", value=u_name, key=f"input_edit_name_{u_id}")
-                    new_u_admin = st.checkbox("Administrador?", value=u_admin, key=f"input_edit_admin_{u_id}")
-                    if st.button("Confirmar Edição", key=f"btn_edit_confirm_{u_id}", type="primary"):
+                    st.markdown(t("edit_user_section_title"))
+                    new_u_name = st.text_input(t("new_username_label"), value=u_name, key=f"input_edit_name_{u_id}")
+                    new_u_admin = st.checkbox(t("admin_checkbox_label"), value=u_admin, key=f"input_edit_admin_{u_id}")
+                    if st.button(t("confirm_edit_btn"), key=f"btn_edit_confirm_{u_id}", type="primary"):
                         success, msg = auth.update_user(u_id, new_u_name, new_u_admin)
                         if success:
                             st.success(msg)
@@ -688,9 +1073,9 @@ if app_mode == "👥 Gestão de Usuários":
                             st.error(msg)
                             
                 if st.session_state.get(f"show_pwd_{u_id}", False):
-                    st.markdown("##### Redefinir Senha")
-                    new_pwd = st.text_input("Nova Senha", type="password", key=f"input_pwd_{u_id}")
-                    if st.button("Confirmar Nova Senha", key=f"btn_pwd_confirm_{u_id}", type="primary"):
+                    st.markdown(t("reset_pwd_section_title"))
+                    new_pwd = st.text_input(t("new_pwd"), type="password", key=f"input_pwd_{u_id}")
+                    if st.button(t("reset_pwd_confirm_btn"), key=f"btn_pwd_confirm_{u_id}", type="primary"):
                         success, msg = auth.reset_password(u_id, new_pwd)
                         if success:
                             st.success(msg)
@@ -700,8 +1085,8 @@ if app_mode == "👥 Gestão de Usuários":
                             st.error(msg)
                             
                 if st.session_state.get(f"show_del_{u_id}", False):
-                    st.warning(f"Tem certeza que deseja excluir o usuário `{u_name}`? Esta ação não pode ser desfeita.")
-                    if st.button("Sim, Excluir", key=f"btn_del_confirm_{u_id}", type="primary"):
+                    st.warning(t("delete_user_warning").format(u_name))
+                    if st.button(t("delete_user_yes"), key=f"btn_del_confirm_{u_id}", type="primary"):
                         success, msg = auth.delete_user(u_id, st.session_state['username'])
                         if success:
                             st.success(msg)
@@ -711,12 +1096,12 @@ if app_mode == "👥 Gestão de Usuários":
                             st.error(msg)
                             
     with tab_create:
-        st.markdown("### ➕ Cadastrar Novo Usuário")
-        st.info("ℹ️ Novos usuários são criados automaticamente com a senha provisória **123456** e serão obrigados a alterá-la no primeiro acesso por questões de segurança.")
+        st.markdown("### " + t("tab_create_user"))
+        st.info(t("create_user_info"))
         with st.form("create_user_form", clear_on_submit=True):
-            new_username = st.text_input("Nome de Usuário", placeholder="Ex: joao.silva")
-            new_is_admin = st.checkbox("Conceder privilégios de Administrador?")
-            create_submit = st.form_submit_button("Cadastrar Usuário", use_container_width=True)
+            new_username = st.text_input(t("new_username_label"), placeholder=t("new_username_placeholder"))
+            new_is_admin = st.checkbox(t("admin_privileges_checkbox"))
+            create_submit = st.form_submit_button(t("create_user_btn"), use_container_width=True)
             
             if create_submit:
                 success, msg = auth.create_user(new_username, new_is_admin)
@@ -728,22 +1113,22 @@ if app_mode == "👥 Gestão de Usuários":
     st.stop() # Interrompe a execução aqui para administradores na tela de Gestão de Usuários
 
 # --- Layout da Aplicação Original ---
-st.title("📄 Processador de Documentos para Markdown")
+st.title(t("process_docs_title"))
 st.markdown("---")
 
 # 1. Entrada de Dados (MOVIDO PARA O TOPO)
-st.subheader("1. Entrada de Dados")
+st.subheader(t("input_data_subheader"))
 
 col_input1, col_input2 = st.columns([1, 1])
 
 # Nova Interface com Tabs: Arquivo Local, Pasta (Lote), Dropbox, YouTube
-tab_local, tab_batch, tab_dropbox, tab_youtube = st.tabs(["📂 Arquivo Local", "📦 Pasta (Lote)", "☁️ Dropbox", "📺 YouTube"])
+tab_local, tab_batch, tab_dropbox, tab_youtube = st.tabs([t("tab_local_file"), t("tab_batch_folder"), t("tab_dropbox"), t("tab_youtube")])
 
 with tab_local:
     if IS_HEADLESS:
-        st.info("ℹ️ Faça o upload de um arquivo para converter e gerar a versão Markdown para download.")
+        st.info(t("local_tab_headless_info"))
         uploaded_file = st.file_uploader(
-            "Selecione um arquivo para converter:",
+            t("local_tab_headless_uploader"),
             type=['pdf', 'docx', 'pptx', 'xlsx', 'doc', 'xls', 'csv', 'json', 'xml', 'html', 'zip', 'mp3', 'wav', 'jpg', 'png', 'epub'],
             key=f"file_uploader_{st.session_state['reset_counter']}"
         )
@@ -754,12 +1139,12 @@ with tab_local:
             st.session_state['selected_batch_dir'] = None
             st.session_state['dbx_selected_for_processing'] = None
     else:
-        st.info("ℹ️ Selecione um arquivo para salvar a versão Markdown na **mesma pasta original**.")
+        st.info(t("local_tab_info"))
         
         col_btn, col_txt = st.columns([1, 4], vertical_alignment="bottom")
         
         with col_btn:
-            if st.button("📂 Selecionar Arquivo", use_container_width=True):
+            if st.button(t("local_tab_select_btn"), use_container_width=True):
                 import subprocess, sys
                 code = """
 import tkinter as tk
@@ -768,11 +1153,11 @@ root = tk.Tk()
 root.withdraw()
 root.wm_attributes('-topmost', 1)
 path = filedialog.askopenfilename(
-    title='Selecione um arquivo para converter',
+    title=t("local_tab_headless_uploader"),
     filetypes=[
-        ('Todos os Suportados', '*.pdf *.docx *.pptx *.xlsx *.doc *.xls *.csv *.json *.xml *.html *.zip *.mp3 *.wav *.jpg *.png *.epub'),
-        ('Documentos PDF', '*.pdf'),
-        ('Todos os Arquivos', '*.*')
+        (t("all_supported"), '*.pdf *.docx *.pptx *.xlsx *.doc *.xls *.csv *.json *.xml *.html *.zip *.mp3 *.wav *.jpg *.png *.epub'),
+        (t("pdf_docs"), '*.pdf'),
+        (t("all_files"), '*.*')
     ]
 )
 print(path)
@@ -795,18 +1180,18 @@ print(path)
             if current_path:
                  st.code(current_path, language=None)
             else:
-                 st.info("Nenhum arquivo selecionado.", icon="ℹ️")
+                 st.info(t("local_tab_no_selection"), icon="ℹ️")
 
 with tab_batch:
     if IS_HEADLESS:
-        st.warning("⚠️ **Aviso:** O processamento de pastas locais (Lote) está desativado em modo servidor (VPS/Docker) pois requer acesso ao sistema de arquivos do servidor. Para processar múltiplos arquivos em lote na nuvem, utilize a aba **Dropbox**, que oferece navegação de pastas e processamento incremental seguro.")
+        st.warning(t("batch_tab_headless_warning"))
     else:
-        st.info("ℹ️ Selecione uma **PASTA** para converter TODOS os arquivos contidos nela (Recursivo).")
+        st.info(t("batch_tab_info"))
         
         col_btn_batch, col_txt_batch = st.columns([1, 4], vertical_alignment="bottom")
         
         with col_btn_batch:
-            if st.button("📂 Selecionar Pasta", use_container_width=True):
+            if st.button(t("batch_tab_select_btn"), use_container_width=True):
                 import subprocess, sys
                 code = """
 import tkinter as tk
@@ -814,7 +1199,7 @@ from tkinter import filedialog
 root = tk.Tk()
 root.withdraw()
 root.wm_attributes('-topmost', 1)
-path = filedialog.askdirectory(title='Selecione a Pasta para Processamento em Lote')
+path = filedialog.askdirectory(title=t("batch_tab_select_btn"))
 print(path)
 """
                 result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
@@ -834,26 +1219,26 @@ print(path)
             if current_dir:
                 st.code(current_dir, language=None)
             else:
-                st.info("Nenhuma pasta selecionada.", icon="ℹ️")
+                st.info(t("batch_tab_no_selection"), icon="ℹ️")
             
             # --- RLM INDEX GENERATION (LOCAL) ---
             if current_dir:
                 st.divider()
-                st.subheader("📚 Índice Semântico (RLM)")
-                if st.button("🧠 Gerar Índice PDF desta Pasta", key="btn_index_local_main"):
+                st.subheader(t("semantic_index_title"))
+                if st.button(t("generate_index_local_btn"), key="btn_index_local_main"):
                     gemini_key = st.session_state.get('api_key')
                     if not gemini_key:
-                        st.error("⚠️ É necessário configurar a Chave API Gemini para usar o RLM.")
+                        st.error(t("gemini_key_required_error"))
                     else:
-                        with st.spinner("🧠 Analisando arquivos e gerando índice com RLM... (Isso pode demorar)"):
+                        with st.spinner(t("index_running_spinner")):
                             indexed_count = generate_index_for_folder(current_dir, gemini_key, recursive=True)
                         if indexed_count > 0:
-                            st.success(f"✅ Índice Gerado com Sucesso! {indexed_count} arquivo(s) indexado(s). Verifique os arquivos '_INDEX_CONTENT*.pdf' na pasta.")
+                            st.success(t("index_success").format(indexed_count))
                         else:
-                            st.warning("⚠️ Nenhum arquivo Markdown (.md) foi encontrado para indexar nesta pasta. Apenas arquivos convertidos para Markdown (.md) podem ser indexados. Converta seus arquivos primeiro nas abas correspondente!")
+                            st.warning(t("index_no_md_warning"))
 
 with tab_dropbox:
-    st.info("ℹ️ Navegue pelas pastas e clique em 'Selecionar Esta Pasta' para converter.")
+    st.info(t("dropbox_info"))
     
     # Init State
     if 'dbx_current_path' not in st.session_state:
@@ -862,19 +1247,11 @@ with tab_dropbox:
         st.session_state['dbx_selected_for_processing'] = None 
 
     # --- NOVA ÁREA DE CONFIGURAÇÃO DO TOKEN ---
-    with st.expander("🔑 Configurar Token do Dropbox (Clique para expandir)"):
-        st.markdown("""
-        **Como obter um novo token:**
-        1. Acesse [dropbox.com/developers/apps](https://www.dropbox.com/developers/apps).
-        2. Clique no seu App (`carroll_rag` ou similar).
-        3. Vá na aba **Settings**.
-        4. Role até a seção **OAuth 2**.
-        5. Clique no botão **Generate** (abaixo de *Generated access token*).
-        6. Copie o código e cole abaixo.
-        """)
+    with st.expander(t("dropbox_token_expander")):
+        st.markdown(t("dropbox_token_instructions"))
         
         new_token = st.text_input(
-            "Cole seu Dropbox Access Token aqui:", 
+            t("dropbox_token_placeholder"), 
             value=st.session_state.get('dropbox_token', ''),
             type="password",
             help="Este token deve ter permissões de leitura e escrita (files.content.write)."
@@ -882,12 +1259,12 @@ with tab_dropbox:
         
         if new_token and new_token != st.session_state.get('dropbox_token'):
             st.session_state['dropbox_token'] = new_token
-            st.success("Token atualizado na sessão! (Reinicie o app se quiser salvar no .env permanentemente)")
+            st.success(t("dropbox_token_updated"))
             st.rerun()
 
     # Validação Básica de Token
     if not st.session_state.get('dropbox_token'):
-        st.warning("⚠️ Token do Dropbox não encontrado. Por favor, insira acima.")
+        st.warning(t("dropbox_token_missing"))
     else:
         # Instancia Handler
         dbx = DropboxHandler(st.session_state['dropbox_token'])
@@ -897,47 +1274,47 @@ with tab_dropbox:
         
         if not is_connected:
             st.warning(f"⚠️ {msg_connection}")
-            st.error("O token atual parece inválido ou expirado. Use a área 'Configurar Token' acima para corrigir.")
+            st.error(t("dropbox_token_invalid"))
         else:
             # --- Interface de Navegação (Somente se conectado) ---
             current = st.session_state['dbx_current_path']
             display_path = current if current else "Raiz (/)"
             
-            st.markdown(f"**📂 Pasta Atual:** `{display_path}`")
+            st.markdown(f"**📂 {t('dropbox_current_folder')}:** `{display_path}`")
             
             # Botões de Ação (Voltar / Selecionar)
             col_nav_1, col_nav_2 = st.columns([1, 4])
         
             with col_nav_1:
                 if current != "":
-                    if st.button("⬆️ Subir Nível", use_container_width=True):
+                    if st.button(t("dropbox_up_level"), use_container_width=True):
                         # Remove o último segmento do path
                         st.session_state['dbx_current_path'] = str(Path(current).parent).replace("\\", "/")
                         if st.session_state['dbx_current_path'] == ".": 
                             st.session_state['dbx_current_path'] = ""
                         st.rerun()
                 else:
-                    st.button("⬆️ (Raiz)", disabled=True, use_container_width=True)
+                    st.button(t("dropbox_up_level") + " (" + t("dropbox_raiz") + ")", disabled=True, use_container_width=True)
                     
             with col_nav_2:
-                 if st.button(f"✅ Selecionar Esta Pasta para Conversão", use_container_width=True, type="primary"):
+                 if st.button(t("dropbox_select_folder_btn"), use_container_width=True, type="primary"):
                      st.session_state['dbx_selected_for_processing'] = current if current else ""
                      # Limpa outras seleções para evitar conflito
                      st.session_state['selected_local_path'] = None
                      st.session_state['selected_batch_dir'] = None
                      st.session_state['processed_file'] = None
                      
-                     st.success(f"Pasta selecionada: {display_path}")
+                     st.success(t("dropbox_selected_msg") + f": {display_path}")
                      st.rerun()
 
             st.divider()
-            st.caption("Subpastas (clique para entrar):")
+            st.caption(t("dropbox_subfolders_caption"))
             
             # Listagem de Subpastas
             subfolders = dbx.list_subfolders(current)
             
             if not subfolders:
-                st.caption("*(Nenhuma subpasta encontrada)*")
+                st.caption(t("dropbox_no_subfolders"))
             else:
                 # Grid de pastas para economizar espaço
                 cols = st.columns(3)
@@ -951,20 +1328,20 @@ with tab_dropbox:
     # Mostra qual foi selecionada para o "Motor" do app
     selected_dbx = st.session_state.get('dbx_selected_for_processing')
     if selected_dbx is not None:
-         st.success(f"🎯 **Pronto para processar:** {selected_dbx if selected_dbx else 'Raiz (/)'}")
+         st.success(t("dropbox_ready_msg").format(selected_dbx if selected_dbx else t("dropbox_raiz")))
          
          # --- RLM INDEX GENERATION (DROPBOX) ---
          st.divider()
-         st.subheader("📚 Índice Semântico (RLM)")
+         st.subheader(t("semantic_index_title"))
          
-         if st.button("🧠 Gerar Índice PDF (Dropbox)", key="btn_index_dbx_main"):
+         if st.button(t("generate_index_dbx_btn"), key="btn_index_dbx_main"):
             gemini_key = st.session_state.get('api_key')
             if not gemini_key:
-                st.error("⚠️ É necessário configurar a Chave API Gemini para usar o RLM.")
+                st.error(t("gemini_key_required_error"))
             else:
                 # Lógica Específica para Dropbox
                 dest_path = selected_dbx if selected_dbx else ""
-                with st.spinner("🧠 Preparando arquivos do Dropbox para indexação..."):
+                with st.spinner(t("dbx_index_running_spinner")):
                     # 1. Criar temp dir
                     index_temp_dir = Path("temp_dropbox_index")
                     index_temp_dir.mkdir(exist_ok=True)
@@ -973,7 +1350,7 @@ with tab_dropbox:
                     md_entries = dbx.list_files_recursive(dest_path, {'.md'})
                     
                     if not md_entries:
-                        st.warning("Nenhum arquivo Markdown encontrado para indexar.")
+                        st.warning(t("dbx_no_md_found"))
                     else:
                         downloaded_count = 0
                         for entry in md_entries:
@@ -989,19 +1366,19 @@ with tab_dropbox:
                             dbx.download_file(entry.path_display, str(local_dest))
                             downloaded_count += 1
                         
-                        st.info(f"Baixados {downloaded_count} arquivos para análise.")
+                        st.info(t("dbx_downloaded_for_analysis").format(downloaded_count))
                         
                         # 3. Gerar Índice
-                        with st.spinner("🧠 RLM processando e gerando PDF..."):
+                        with st.spinner(t("dbx_rlm_processing_spinner")):
                             indexed_count = generate_index_for_folder(str(index_temp_dir), gemini_key, recursive=True)
                         
                         if indexed_count == 0:
-                            st.warning("⚠️ Nenhum arquivo Markdown (.md) foi encontrado para indexar nesta pasta. Apenas arquivos convertidos para Markdown (.md) podem ser indexados. Converta seus arquivos do Dropbox primeiro na aba acima!")
+                            st.warning(t("dbx_index_no_md_warning"))
                         else:
                             # 4. Upload
                             pdf_files = list(index_temp_dir.rglob("_INDEX_CONTENT*.pdf"))
                             if not pdf_files:
-                                st.error("Nenhum índice gerado. (Verifique logs/arquivos MD)")
+                                st.error(t("dbx_no_index_generated"))
                             else:
                                 uploaded_indexes = 0
                                 for pdf in pdf_files:
@@ -1010,21 +1387,21 @@ with tab_dropbox:
                                     remote_pdf_path = f"{base}/{rel_pdf_path.as_posix()}"
                                     if remote_pdf_path.startswith("//"): remote_pdf_path = remote_pdf_path[1:]
                                     
-                                    st.toast(f"⬆️ Enviando: {rel_pdf_path.name}")
+                                    st.toast(t("dbx_sending_toast") + f": {rel_pdf_path.name}")
                                     dbx.upload_file(str(pdf), remote_pdf_path)
                                     uploaded_indexes += 1
                                 
-                                st.success(f"✅ {uploaded_indexes} Índices Semânticos gerados e enviados para o Dropbox com sucesso!")
+                                st.success(t("dbx_index_success").format(uploaded_indexes))
                         
                         # Limpeza
                         import shutil
                         shutil.rmtree(index_temp_dir, ignore_errors=True)
 
 with tab_youtube:
-    st.caption("ℹ️ Transcrição salva na pasta `markdown_output`.")
+    st.caption(t("youtube_info"))
     # Usa reset_counter no key para forçar recriação do widget ao limpar
     youtube_url = st.text_input(
-        "Cole uma URL do YouTube:", 
+        t("youtube_url_placeholder"), 
         placeholder="https://www.youtube.com/watch?v=...", 
         key=f"youtube_url_{st.session_state['reset_counter']}"
     )
@@ -1032,37 +1409,37 @@ with tab_youtube:
 st.markdown("---")
 
 # 2. Configuração Opcional (Gemini)
-st.subheader("2. Configuração de IA (Opcional)")
+st.subheader(t("ia_config_subheader"))
 
-use_gemini = st.checkbox("Usar Google Gemini AI? (Recomendado para PDFs escaneados ruins ou imagens complexas)")
+use_gemini = st.checkbox(t("use_gemini_checkbox"))
 
 if use_gemini:
-    gemini_key_input = st.text_input("Cole sua Chave API Gemini:", type="password", key="gemini_key_in")
+    gemini_key_input = st.text_input(t("gemini_key_placeholder"), type="password", key="gemini_key_in")
     if gemini_key_input:
         if validate_gemini_api_key(gemini_key_input):
             st.session_state['api_key'] = gemini_key_input
-            st.success("✅ Chave Gemini validada!")
+            st.success(t("gemini_key_valid"))
             
             # Opção de forçar
             st.checkbox(
-                "Forçar uso do Gemini mesmo se Tesseract funcionar?", 
+                t("gemini_force_checkbox"), 
                 key="force_gemini",
-                help="Ignora OCR local e usa nuvem para tudo (custo/tempo maior)."
+                help=t("gemini_force_help")
             )
         else:
-            st.error("❌ Chave inválida.")
+            st.error(t("gemini_key_invalid"))
             st.session_state['api_key'] = None
     else:
-        st.warning("⚠️ Insira a chave para ativar o modo IA.")
+        st.warning(t("gemini_key_warning"))
         st.session_state['api_key'] = None
 else:
     st.session_state['api_key'] = None
 
 # Nova Opção: Sobrescrever
 force_overwrite = st.checkbox(
-    "Sobrescrever arquivos Markdown existentes?", 
+    t("overwrite_checkbox"), 
     value=False,
-    help="Se desmarcado, o sistema pulará arquivos que já possuem a versão _MD.md na pasta."
+    help=t("overwrite_help")
 )
 
 st.markdown("---")
@@ -1097,54 +1474,54 @@ elif youtube_url:
 if has_input:
     
     # Feedback Visual de Prontidão
-    st.info(f"📁 **Pronto para Processar:** {input_name}")
+    st.info(t("ready_to_process_info").format(input_name))
     
     # Botão de Processamento
-    if st.button("🚀 Iniciar Processamento", use_container_width=True):
+    if st.button(t("start_processing_btn"), use_container_width=True):
         st.session_state['processed_file'] = None
         
         # 1. YouTube
         if youtube_url:
              if is_youtube_url(youtube_url):
-                 st.info(f"Processando YouTube: {youtube_url}")
+                 st.info(t("processing_youtube") + f": {youtube_url}")
                  output_dir = Path("markdown_output")
                  output_dir.mkdir(exist_ok=True)
                  # Cria um nome de arquivo seguro a partir da URL (simplificado)
                  video_id = youtube_url.split("v=")[-1].split("&")[0]
                  output_md_path = output_dir / f"youtube_{video_id}.md"
                  
-                 with st.spinner("Extraindo transcrição do YouTube..."):
+                 with st.spinner(t("extracting_youtube")):
                      success = extract_youtube_transcript(youtube_url, str(output_md_path))
                      if success:
                          st.session_state['processed_file'] = str(output_md_path)
-                         st.success("✅ Transcrição concluída!")
+                         st.success(t("youtube_transcription_success"))
                      else:
-                         st.error("❌ Falha ao obter transcrição. Verifique se o vídeo tem legendas.")
+                         st.error(t("youtube_transcription_error"))
              else:
-                 st.error("❌ URL do YouTube inválida.")
+                 st.error(t("youtube_url_invalid"))
 
         # 2. Upload Web (Headless)
         elif uploaded_file:
             if st.session_state['api_key']:
-                st.info("Modo de Processamento: Híbrido (Upload Web + Nuvem Gemini)")
+                st.info(t("mode_hybrid_upload"))
             else:
-                st.info("Modo de Processamento: 100% Local (Upload Web + MarkItDown/Tesseract)")
+                st.info(t("mode_local_upload"))
                 
-            with st.spinner("Processando Upload Web..."):
+            with st.spinner(t("processing_upload")):
                  output_path = process_uploaded_file(uploaded_file, st.session_state['api_key'])
                  if output_path:
                      st.session_state['processed_file'] = str(output_path)
-                     st.success("✅ Upload processado com sucesso!")
+                     st.success(t("upload_success"))
 
         # 3. Arquivo Local (Via Dialogo Nativo)
         elif selected_local_path:
             
             if st.session_state['api_key']:
-                st.info("Modo de Processamento: Híbrido (Local + Nuvem Gemini)")
+                st.info(t("mode_hybrid_local"))
             else:
-                st.info("Modo de Processamento: 100% Local (MarkItDown/Tesseract)")
+                st.info(t("mode_local_local"))
                 
-            with st.spinner("Processando Arquivo Local..."):
+            with st.spinner(t("processing_local")):
                  output_path = process_local_file(selected_local_path, st.session_state['api_key'])
                  if output_path:
                      st.session_state['processed_file'] = str(output_path)
@@ -1152,9 +1529,9 @@ if has_input:
         # 3. Lote (Pasta)
         elif selected_batch_dir:
              if st.session_state['api_key']:
-                st.info("Modo Batch: Híbrido (Local + Nuvem Gemini)")
+                st.info(t("mode_hybrid_batch"))
              else:
-                st.info("Modo Batch: 100% Local")
+                st.info(t("mode_local_batch"))
              
              # Chama a função de lote (ela gerencia seu próprio spinner/progresso)
              process_batch_directory(selected_batch_dir, st.session_state['api_key'], overwrite=force_overwrite)
@@ -1162,9 +1539,9 @@ if has_input:
         # 4. Dropbox Batch
         elif dropbox_selected_processing is not None:
              if st.session_state['api_key']:
-                st.info("Modo Dropbox: Híbrido (Download -> Process -> Upload)")
+                st.info(t("mode_hybrid_dropbox"))
              else:
-                st.info("Modo Dropbox: 100% Local (Download -> Process -> Upload)")
+                st.info(t("mode_local_dropbox"))
              
              # Passa o path selecionado (pode ser "" para raiz)
              process_dropbox_batch(dropbox_selected_processing, st.session_state['api_key'], overwrite=force_overwrite)
@@ -1172,17 +1549,17 @@ if has_input:
 # 3. Download do Resultado
 if st.session_state['processed_file'] and os.path.exists(st.session_state['processed_file']):
     st.markdown("---")
-    st.subheader("✅ Processamento Concluído")
+    st.subheader(t("processing_done_subheader"))
     
     # Leitura do conteúdo
     with open(st.session_state['processed_file'], "r", encoding="utf-8") as f:
         md_content = f.read()
         
-    st.markdown("### Pré-visualização do Conteúdo (Markdown)")
+    st.markdown(t("preview_title"))
     
     # Usando st.text_area para limitar a altura e adicionar barra de rolagem
     st.text_area(
-        label="Conteúdo Extraído",
+        label=t("extracted_content_label"),
         value=md_content,
         height=300,  # Altura fixa de 300 pixels
         key="markdown_preview"
@@ -1192,18 +1569,18 @@ if st.session_state['processed_file'] and os.path.exists(st.session_state['proce
     col_download, col_cleanup = st.columns(2)
     with col_download:
         st.download_button(
-            label="⬇️ Baixar Arquivo Markdown",
+            label=t("download_md_btn"),
             data=md_content,
             file_name=Path(st.session_state['processed_file']).name,
             mime="text/markdown",
             use_container_width=True
         )
     with col_cleanup:
-        if st.button("🗑️ Limpar Arquivos de Saída Antigos", use_container_width=True):
+        if st.button(t("clean_old_outputs_btn"), use_container_width=True):
             if clean_output_directory():
-                st.success("Pasta de saída limpa com sucesso!")
+                st.success(t("clean_success"))
             else:
-                st.info("Nenhum arquivo para limpar na pasta de saída.")
+                st.info(t("clean_empty_info"))
             
             # Limpa o estado da sessão e inputs
             st.session_state['processed_file'] = None
@@ -1214,7 +1591,7 @@ if st.session_state['processed_file'] and os.path.exists(st.session_state['proce
             st.rerun() 
 
     # Exibir o caminho de salvamento final
-    st.caption(f"Arquivo salvo localmente no servidor em: {Path(st.session_state['processed_file']).resolve()}")
+    st.caption(t("saved_locally_caption", Path(st.session_state['processed_file']).resolve()))
 
 
 # --- Inicialização do Streamlit ---
