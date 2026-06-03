@@ -94,4 +94,56 @@ O painel será aberto no seu navegador padrão (geralmente `http://localhost:850
 4.  **YouTube:** Útil para converter áudios de aulas e palestras.
 
 ---
+
+## 🚀 Guia de Deploy & Referência da VPS
+
+> [!NOTE]
+> Esta seção serve como referência rápida para o desenvolvimento local e o deploy de alterações na VPS.
+
+### 💻 Ambiente Local (Docker)
+*   **Atenção:** Antes de executar a aplicação localmente utilizando Docker, certifique-se de que o **Docker Desktop** (ou o serviço do Docker) esteja **ativo** e rodando na sua máquina.
+
+### 🌐 Acesso à VPS
+*   **Comando de Acesso (SSH):**
+    ```bash
+    ssh root@168.231.90.232
+    ```
+*   **Pasta do Sistema na VPS:**
+    ```bash
+    cd /app/pdftomd
+    ```
+
+### 🔄 Fluxo de Deploy (Subir Alterações)
+
+Sempre que realizar atualizações no ambiente **LOCAL** e precisar refleti-las em **PRODUÇÃO** na VPS, siga estes passos:
+
+1.  **Identificar os arquivos modificados localmente:**
+    *   Identifique quais arquivos de código (ex: `app.py`, `pdf_detector.py`, `index_generator.py`, `Dockerfile`, `docker-compose.yml`, etc.) sofreram alteração.
+
+2.  **Enviar os arquivos modificados para a VPS via SCP:**
+    *   Transfira cada arquivo alterado individualmente para a pasta correspondente na VPS. Exemplo para o arquivo principal:
+        ```powershell
+        scp app.py root@168.231.90.232:/app/pdftomd/
+        ```
+    *   Caso tenha alterado arquivos dentro de subpastas (como no módulo `rlm`), especifique a subpasta de destino na VPS. Exemplo:
+        ```powershell
+        scp rlm/rlm_repl.py root@168.231.90.232:/app/pdftomd/rlm/
+        ```
+    > [!WARNING]
+    > **Atenção extrema ao `.env`:** O arquivo `.env` com as credenciais de produção já está configurado na VPS. **Nunca** envie o `.env` local via SCP para não sobrescrever e perder as credenciais do usuário em produção.
+
+3.  **Aplicar as alterações e reconstruir os Containers na VPS:**
+    Conecte-se à VPS, acesse a pasta do sistema e reconstrua os containers para aplicar o novo código:
+    ```bash
+    # 1. Entrar na VPS
+    ssh root@168.231.90.232
+
+    # 2. Ir para a pasta do sistema
+    cd /app/pdftomd
+
+    # 3. Reconstruir e subir os containers com as alterações
+    docker-compose up -d --build
+    ```
+
+---
 *Documentação atualizada de acordo com a versão unificada Multimodal v2.0.*

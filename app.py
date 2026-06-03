@@ -651,6 +651,19 @@ def validate_gemini_api_key(api_key: str) -> bool:
     except Exception:
         return False
 
+@st.cache_data(show_spinner=False, ttl=300)
+def validate_gemini_api_key_cached(api_key: str) -> bool:
+    return validate_gemini_api_key(api_key)
+
+@st.cache_data(show_spinner=False, ttl=300)
+def check_dropbox_connection_cached(token: str) -> tuple:
+    try:
+        dbx = DropboxHandler(token)
+        return dbx.check_connection()
+    except Exception as e:
+        return False, str(e)
+
+
 def run_file_pipeline(input_path_str: str, output_path_str: str, gemini_key: str):
     """
     Executa o pipeline de conversão (Core Logic).
@@ -1146,23 +1159,29 @@ with tab_local:
         with col_btn:
             if st.button(t("local_tab_select_btn"), use_container_width=True):
                 import subprocess, sys
-                code = """
+                title = t("local_tab_headless_uploader")
+                all_supported = t("all_supported")
+                pdf_docs = t("pdf_docs")
+                all_files = t("all_files")
+                code = f"""
 import tkinter as tk
 from tkinter import filedialog
 root = tk.Tk()
 root.withdraw()
 root.wm_attributes('-topmost', 1)
 path = filedialog.askopenfilename(
-    title=t("local_tab_headless_uploader"),
+    title={repr(title)},
     filetypes=[
-        (t("all_supported"), '*.pdf *.docx *.pptx *.xlsx *.doc *.xls *.csv *.json *.xml *.html *.zip *.mp3 *.wav *.jpg *.png *.epub'),
-        (t("pdf_docs"), '*.pdf'),
-        (t("all_files"), '*.*')
+        ({repr(all_supported)}, '*.pdf *.docx *.pptx *.xlsx *.doc *.xls *.csv *.json *.xml *.html *.zip *.mp3 *.wav *.jpg *.png *.epub'),
+        ({repr(pdf_docs)}, '*.pdf'),
+        ({repr(all_files)}, '*.*')
     ]
 )
 print(path)
 """
                 result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+                if result.stderr:
+                    print("Subprocess error:", result.stderr)
                 file_path = result.stdout.strip()
                 
                 if file_path:
@@ -1193,16 +1212,19 @@ with tab_batch:
         with col_btn_batch:
             if st.button(t("batch_tab_select_btn"), use_container_width=True):
                 import subprocess, sys
-                code = """
+                title = t("batch_tab_select_btn")
+                code = f"""
 import tkinter as tk
 from tkinter import filedialog
 root = tk.Tk()
 root.withdraw()
 root.wm_attributes('-topmost', 1)
-path = filedialog.askdirectory(title=t("batch_tab_select_btn"))
+path = filedialog.askdirectory(title={repr(title)})
 print(path)
 """
                 result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+                if result.stderr:
+                    print("Subprocess error:", result.stderr)
                 dir_path = result.stdout.strip()
                 
                 if dir_path:
@@ -1246,156 +1268,174 @@ with tab_dropbox:
     if 'dbx_selected_for_processing' not in st.session_state:
         st.session_state['dbx_selected_for_processing'] = None 
 
-    # --- NOVA ÁREA DE CONFIGURAÇÃO DO TOKEN ---
-    with st.expander(t("dropbox_token_expander")):
-        st.markdown(t("dropbox_token_instructions"))
-        
-        new_token = st.text_input(
-            t("dropbox_token_placeholder"), 
-            value=st.session_state.get('dropbox_token', ''),
-            type="password",
-            help="Este token deve ter permissões de leitura e escrita (files.content.write)."
-        )
-        
-        if new_token and new_token != st.session_state.get('dropbox_token'):
-            st.session_state['dropbox_token'] = new_token
-            st.success(t("dropbox_token_updated"))
-            st.rerun()
+    # --- INPUTS (Empilhados Verticalmente) ---
+    st.markdown(t("dropbox_token_instructions"))
+    st.text_input(
+        t("dropbox_token_placeholder"), 
+        type="password",
+        key="dropbox_token"
+    )
+    
+    st.text_input(
+        t("gemini_key_placeholder"), 
+        type="password",
+        key="api_key"
+    )
 
-    # Validação Básica de Token
-    if not st.session_state.get('dropbox_token'):
-        st.warning(t("dropbox_token_missing"))
-    else:
-        # Instancia Handler
-        dbx = DropboxHandler(st.session_state['dropbox_token'])
-        
-        # 1. VERIFICAÇÃO PREVENTIVA DE CONEXÃO
-        is_connected, msg_connection = dbx.check_connection()
-        
-        if not is_connected:
-            st.warning(f"⚠️ {msg_connection}")
-            st.error(t("dropbox_token_invalid"))
+    # Validações
+    token_valid = False
+    gemini_valid = False
+
+    if st.session_state.get('dropbox_token'):
+        is_connected, msg_connection = check_dropbox_connection_cached(st.session_state['dropbox_token'])
+        if is_connected:
+            token_valid = True
+            st.success(msg_connection)
         else:
-            # --- Interface de Navegação (Somente se conectado) ---
-            current = st.session_state['dbx_current_path']
-            display_path = current if current else "Raiz (/)"
-            
-            st.markdown(f"**📂 {t('dropbox_current_folder')}:** `{display_path}`")
-            
-            # Botões de Ação (Voltar / Selecionar)
-            col_nav_1, col_nav_2 = st.columns([1, 4])
+            st.error(msg_connection)
+    else:
+        st.warning(t("dropbox_token_missing"))
+
+    if st.session_state.get('api_key'):
+        if validate_gemini_api_key_cached(st.session_state['api_key']):
+            gemini_valid = True
+            st.success(t("gemini_key_valid"))
+        else:
+            st.error(t("gemini_key_invalid"))
+    else:
+        st.warning(t("gemini_key_warning"))
+
+    # Apenas renderizar o fluxo se ambos forem válidos
+    if token_valid and gemini_valid:
+        st.markdown("---")
         
-            with col_nav_1:
-                if current != "":
-                    if st.button(t("dropbox_up_level"), use_container_width=True):
-                        # Remove o último segmento do path
-                        st.session_state['dbx_current_path'] = str(Path(current).parent).replace("\\", "/")
-                        if st.session_state['dbx_current_path'] == ".": 
-                            st.session_state['dbx_current_path'] = ""
+        # Instancia o handler
+        dbx = DropboxHandler(st.session_state['dropbox_token'])
+        current = st.session_state['dbx_current_path']
+        display_path = current if current else t("dropbox_raiz")
+        
+        # 1. selecionar pastas, subir nível etc (com botão de selecionar pasta ao lado)
+        col_path_info, col_select_btn = st.columns([2, 1], vertical_alignment="center")
+        with col_path_info:
+            st.subheader(f"📂 {t('dropbox_current_folder')}: `{display_path}`")
+        with col_select_btn:
+            if st.button(t("dropbox_select_folder_btn"), use_container_width=True, type="primary", key="btn_dbx_select_this_folder"):
+                st.session_state['dbx_selected_for_processing'] = current
+                # Limpa outras seleções para evitar conflito
+                st.session_state['selected_local_path'] = None
+                st.session_state['selected_batch_dir'] = None
+                st.session_state['processed_file'] = None
+                st.success(t("dropbox_selected_msg") + f": {display_path}")
+                st.rerun()
+        
+        # Botão Subir Nível
+        col_nav_1, _ = st.columns([1, 4])
+        with col_nav_1:
+            if current != "":
+                if st.button(t("dropbox_up_level"), use_container_width=True, key="dbx_up_btn"):
+                    # Remove o último segmento do path
+                    st.session_state['dbx_current_path'] = str(Path(current).parent).replace("\\", "/")
+                    if st.session_state['dbx_current_path'] == ".": 
+                        st.session_state['dbx_current_path'] = ""
+                    st.rerun()
+            else:
+                st.button(t("dropbox_up_level") + " (" + t("dropbox_raiz") + ")", disabled=True, use_container_width=True, key="dbx_up_btn_disabled")
+                
+        st.caption(t("dropbox_subfolders_caption"))
+        
+        # Listagem de Subpastas
+        subfolders = dbx.list_subfolders(current)
+        if not subfolders:
+            st.caption(t("dropbox_no_subfolders"))
+        else:
+            # Grid de pastas para economizar espaço
+            cols = st.columns(3)
+            for idx, folder in enumerate(subfolders):
+                with cols[idx % 3]:
+                    if st.button(f"📁 {folder.name}", key=f"btn_folder_{folder.id}", use_container_width=True):
+                        st.session_state['dbx_current_path'] = folder.path_display
                         st.rerun()
+                        
+        st.markdown("---")
+        
+        # 2. gerar índice (arquivo "_INDEX...") - Nota explicativa sobre a dependência
+        st.subheader(t("semantic_index_title"))
+        note_msg = "💡 *Nota: A geração do índice necessita que os arquivos já tenham sido convertidos para Markdown (.md) anteriormente.*" if st.session_state.get('lang', 'pt') == 'pt' else "💡 *Note: Index generation requires that files have already been converted to Markdown (.md) beforehand.*"
+        st.info(note_msg)
+        
+        if st.button(t("generate_index_dbx_btn"), key="btn_index_dbx_main", use_container_width=True):
+            dest_path = current
+            with st.spinner(t("dbx_index_running_spinner")):
+                index_temp_dir = Path("temp_dropbox_index")
+                index_temp_dir.mkdir(exist_ok=True)
+                
+                md_entries = dbx.list_files_recursive(dest_path, {'.md'})
+                
+                if not md_entries:
+                    st.warning(t("dbx_no_md_found"))
                 else:
-                    st.button(t("dropbox_up_level") + " (" + t("dropbox_raiz") + ")", disabled=True, use_container_width=True)
-                    
-            with col_nav_2:
-                 if st.button(t("dropbox_select_folder_btn"), use_container_width=True, type="primary"):
-                     st.session_state['dbx_selected_for_processing'] = current if current else ""
-                     # Limpa outras seleções para evitar conflito
-                     st.session_state['selected_local_path'] = None
-                     st.session_state['selected_batch_dir'] = None
-                     st.session_state['processed_file'] = None
-                     
-                     st.success(t("dropbox_selected_msg") + f": {display_path}")
-                     st.rerun()
-
-            st.divider()
-            st.caption(t("dropbox_subfolders_caption"))
-            
-            # Listagem de Subpastas
-            subfolders = dbx.list_subfolders(current)
-            
-            if not subfolders:
-                st.caption(t("dropbox_no_subfolders"))
-            else:
-                # Grid de pastas para economizar espaço
-                cols = st.columns(3)
-                for idx, folder in enumerate(subfolders):
-                    # Distribui entre colunas
-                    with cols[idx % 3]:
-                        if st.button(f"📁 {folder.name}", key=f"btn_folder_{folder.id}", use_container_width=True):
-                            st.session_state['dbx_current_path'] = folder.path_display
-                            st.rerun()
-
-    # Mostra qual foi selecionada para o "Motor" do app
-    selected_dbx = st.session_state.get('dbx_selected_for_processing')
-    if selected_dbx is not None:
-         st.success(t("dropbox_ready_msg").format(selected_dbx if selected_dbx else t("dropbox_raiz")))
-         
-         # --- RLM INDEX GENERATION (DROPBOX) ---
-         st.divider()
-         st.subheader(t("semantic_index_title"))
-         
-         if st.button(t("generate_index_dbx_btn"), key="btn_index_dbx_main"):
-            gemini_key = st.session_state.get('api_key')
-            if not gemini_key:
-                st.error(t("gemini_key_required_error"))
-            else:
-                # Lógica Específica para Dropbox
-                dest_path = selected_dbx if selected_dbx else ""
-                with st.spinner(t("dbx_index_running_spinner")):
-                    # 1. Criar temp dir
-                    index_temp_dir = Path("temp_dropbox_index")
-                    index_temp_dir.mkdir(exist_ok=True)
-                    
-                    # 2. Listar apenas MDs
-                    md_entries = dbx.list_files_recursive(dest_path, {'.md'})
-                    
-                    if not md_entries:
-                        st.warning(t("dbx_no_md_found"))
-                    else:
-                        downloaded_count = 0
-                        for entry in md_entries:
-                            # Mantém estrutura relativa
-                            if dest_path:
-                                 rel_path = entry.path_display.replace(dest_path, "", 1).lstrip("/")
-                            else:
-                                 rel_path = entry.path_display.lstrip("/")
-                                 
-                            local_dest = index_temp_dir / rel_path
-                            local_dest.parent.mkdir(parents=True, exist_ok=True)
-                            
-                            dbx.download_file(entry.path_display, str(local_dest))
-                            downloaded_count += 1
-                        
-                        st.info(t("dbx_downloaded_for_analysis").format(downloaded_count))
-                        
-                        # 3. Gerar Índice
-                        with st.spinner(t("dbx_rlm_processing_spinner")):
-                            indexed_count = generate_index_for_folder(str(index_temp_dir), gemini_key, recursive=True)
-                        
-                        if indexed_count == 0:
-                            st.warning(t("dbx_index_no_md_warning"))
+                    downloaded_count = 0
+                    for entry in md_entries:
+                        if dest_path:
+                             rel_path = entry.path_display.replace(dest_path, "", 1).lstrip("/")
                         else:
-                            # 4. Upload
-                            pdf_files = list(index_temp_dir.rglob("_INDEX_CONTENT*.pdf"))
-                            if not pdf_files:
-                                st.error(t("dbx_no_index_generated"))
-                            else:
-                                uploaded_indexes = 0
-                                for pdf in pdf_files:
-                                    rel_pdf_path = pdf.relative_to(index_temp_dir)
-                                    base = dest_path if dest_path != "" else ""
-                                    remote_pdf_path = f"{base}/{rel_pdf_path.as_posix()}"
-                                    if remote_pdf_path.startswith("//"): remote_pdf_path = remote_pdf_path[1:]
-                                    
-                                    st.toast(t("dbx_sending_toast") + f": {rel_pdf_path.name}")
-                                    dbx.upload_file(str(pdf), remote_pdf_path)
-                                    uploaded_indexes += 1
-                                
-                                st.success(t("dbx_index_success").format(uploaded_indexes))
+                             rel_path = entry.path_display.lstrip("/")
+                             
+                        local_dest = index_temp_dir / rel_path
+                        local_dest.parent.mkdir(parents=True, exist_ok=True)
                         
-                        # Limpeza
-                        import shutil
-                        shutil.rmtree(index_temp_dir, ignore_errors=True)
+                        dbx.download_file(entry.path_display, str(local_dest))
+                        downloaded_count += 1
+                    
+                    st.info(t("dbx_downloaded_for_analysis").format(downloaded_count))
+                    
+                    with st.spinner(t("dbx_rlm_processing_spinner")):
+                        indexed_count = generate_index_for_folder(str(index_temp_dir), st.session_state['api_key'], recursive=True)
+                    
+                    if indexed_count == 0:
+                        st.warning(t("dbx_index_no_md_warning"))
+                    else:
+                        pdf_files = list(index_temp_dir.rglob("_INDEX_CONTENT*.pdf"))
+                        if not pdf_files:
+                            st.error(t("dbx_no_index_generated"))
+                        else:
+                            uploaded_indexes = 0
+                            for pdf in pdf_files:
+                                rel_pdf_path = pdf.relative_to(index_temp_dir)
+                                base = dest_path if dest_path != "" else ""
+                                remote_pdf_path = f"{base}/{rel_pdf_path.as_posix()}"
+                                if remote_pdf_path.startswith("//"): remote_pdf_path = remote_pdf_path[1:]
+                                
+                                st.toast(t("dbx_sending_toast") + f": {rel_pdf_path.name}")
+                                dbx.upload_file(str(pdf), remote_pdf_path)
+                                uploaded_indexes += 1
+                            
+                            st.success(t("dbx_index_success").format(uploaded_indexes))
+                    
+                    import shutil
+                    shutil.rmtree(index_temp_dir, ignore_errors=True)
+
+        st.markdown("---")
+
+        # 4. converter arquivos
+        selected_dbx = st.session_state.get('dbx_selected_for_processing')
+        if selected_dbx is not None:
+            display_sel = selected_dbx if selected_dbx else t("dropbox_raiz")
+            st.success(t("dropbox_ready_msg").format(display_sel))
+            
+            # Checkbox de sobrescrever local da aba Dropbox
+            dbx_force_overwrite = st.checkbox(
+                t("overwrite_checkbox"), 
+                value=st.session_state.get('dbx_force_overwrite', False),
+                help=t("overwrite_help"),
+                key="dbx_overwrite_checkbox"
+            )
+            st.session_state['dbx_force_overwrite'] = dbx_force_overwrite
+            
+            if st.button("🚀 " + t("start_processing_btn") + " (Dropbox)", use_container_width=True, key="btn_dbx_convert_action"):
+                st.info(t("mode_hybrid_dropbox"))
+                process_dropbox_batch(selected_dbx, st.session_state['api_key'], overwrite=dbx_force_overwrite)
+
 
 with tab_youtube:
     st.caption(t("youtube_info"))
@@ -1408,32 +1448,7 @@ with tab_youtube:
 
 st.markdown("---")
 
-# 2. Configuração Opcional (Gemini)
-st.subheader(t("ia_config_subheader"))
-
-use_gemini = st.checkbox(t("use_gemini_checkbox"))
-
-if use_gemini:
-    gemini_key_input = st.text_input(t("gemini_key_placeholder"), type="password", key="gemini_key_in")
-    if gemini_key_input:
-        if validate_gemini_api_key(gemini_key_input):
-            st.session_state['api_key'] = gemini_key_input
-            st.success(t("gemini_key_valid"))
-            
-            # Opção de forçar
-            st.checkbox(
-                t("gemini_force_checkbox"), 
-                key="force_gemini",
-                help=t("gemini_force_help")
-            )
-        else:
-            st.error(t("gemini_key_invalid"))
-            st.session_state['api_key'] = None
-    else:
-        st.warning(t("gemini_key_warning"))
-        st.session_state['api_key'] = None
-else:
-    st.session_state['api_key'] = None
+# (Seção de Configuração de IA opcional removida)
 
 # Nova Opção: Sobrescrever
 force_overwrite = st.checkbox(
@@ -1450,8 +1465,6 @@ has_input = False
 input_name = "Desconhecido"
 selected_local_path = st.session_state.get('selected_local_path')
 selected_batch_dir = st.session_state.get('selected_batch_dir')
-# Dropbox input (Seleção via Navegador)
-dropbox_selected_processing = st.session_state.get('dbx_selected_for_processing')
 uploaded_file = st.session_state.get('uploaded_file')
 
 if uploaded_file:
@@ -1463,10 +1476,6 @@ elif selected_local_path:
 elif selected_batch_dir:
     has_input = True
     input_name = f"Lote Local: {os.path.basename(selected_batch_dir)}"
-elif dropbox_selected_processing is not None:
-    has_input = True
-    display_name = dropbox_selected_processing if dropbox_selected_processing else "Raiz (/)"
-    input_name = f"Dropbox: {display_name}"
 elif youtube_url:
     has_input = True
     input_name = f"YouTube: {youtube_url}"
@@ -1535,16 +1544,7 @@ if has_input:
              
              # Chama a função de lote (ela gerencia seu próprio spinner/progresso)
              process_batch_directory(selected_batch_dir, st.session_state['api_key'], overwrite=force_overwrite)
-        
-        # 4. Dropbox Batch
-        elif dropbox_selected_processing is not None:
-             if st.session_state['api_key']:
-                st.info(t("mode_hybrid_dropbox"))
-             else:
-                st.info(t("mode_local_dropbox"))
-             
-             # Passa o path selecionado (pode ser "" para raiz)
-             process_dropbox_batch(dropbox_selected_processing, st.session_state['api_key'], overwrite=force_overwrite)
+
             
 # 3. Download do Resultado
 if st.session_state['processed_file'] and os.path.exists(st.session_state['processed_file']):
