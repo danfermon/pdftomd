@@ -28,6 +28,10 @@ from index_generator import generate_index_for_folder # NOVO RLM
 # --- Sistema de Tradução ---
 TRANSLATIONS = {
     "pt": {
+        "credentials_expander_title": "🔑 Configurações de API e Acesso",
+        "dbx_no_md_warning_friendly": "💡 Nenhum arquivo Markdown (.md) foi encontrado nesta pasta do Dropbox (ou em suas subpastas). A conversão é necessária antes de gerar o índice semântico. Por favor, execute a conversão acima.",
+        "dbx_partial_md_warning": "⚠️ Nota: O índice semântico só será gerado para as pastas/subpastas que já possuem arquivos (.md) convertidos. Subpastas sem arquivos (.md) serão ignoradas na indexação.",
+        "dbx_require_credentials_warning": "⚠️ Por favor, configure e valide suas credenciais do Dropbox e Gemini na seção de configurações no topo da página para navegar e processar arquivos.",
         "page_title": "Processador de Documentos para Markdown",
         "login_subtitle": "Sistema Seguro de Processamento de Documentos",
         "username": "Usuário",
@@ -206,6 +210,10 @@ TRANSLATIONS = {
         "saving_upload_mode_simple": "📂 Modo Upload: Salvando saída em {}"
     },
     "en": {
+        "credentials_expander_title": "🔑 API & Access Settings",
+        "dbx_no_md_warning_friendly": "💡 No Markdown (.md) files were found in this Dropbox folder (or its subfolders). Conversion is required before generating the semantic index. Please run the conversion above.",
+        "dbx_partial_md_warning": "⚠️ Note: The semantic index will only be generated for folders/subfolders that already contain converted (.md) files. Subfolders without (.md) files will be ignored during indexing.",
+        "dbx_require_credentials_warning": "⚠️ Please configure and validate your Dropbox and Gemini credentials in the settings section at the top of the page to navigate and process files.",
         "page_title": "Document Processor to Markdown",
         "login_subtitle": "Secure Document Processing System",
         "username": "Username",
@@ -1127,6 +1135,66 @@ if app_mode == t("nav_user_mgmt"):
 
 # --- Layout da Aplicação Original ---
 st.title(t("process_docs_title"))
+
+# 1. Configurações de API e Acesso (Expander Inteligente no Topo)
+api_key_val = st.session_state.get('api_key', '')
+dropbox_token_val = st.session_state.get('dropbox_token', '')
+
+is_gemini_valid = validate_gemini_api_key_cached(api_key_val) if api_key_val else False
+is_dbx_valid = False
+dbx_conn_msg = ""
+if dropbox_token_val:
+    is_dbx_valid, dbx_conn_msg = check_dropbox_connection_cached(dropbox_token_val)
+
+token_valid = is_dbx_valid
+gemini_valid = is_gemini_valid
+credentials_valid = is_gemini_valid and is_dbx_valid
+show_credentials_expanded = not credentials_valid
+
+with st.expander(t("credentials_expander_title"), expanded=show_credentials_expanded):
+    col_cred1, col_cred2 = st.columns([1, 1])
+    
+    with col_cred1:
+        st.markdown(t("dropbox_token_instructions"))
+        new_dropbox_token = st.text_input(
+            t("dropbox_token_placeholder"), 
+            value=dropbox_token_val,
+            type="password",
+            key="input_dropbox_token"
+        )
+        if new_dropbox_token != dropbox_token_val:
+            st.session_state['dropbox_token'] = new_dropbox_token
+            st.rerun()
+            
+    with col_cred2:
+        st.markdown("**Gemini API Key:**\n\nConfigure sua chave para habilitar processamento em lote via IA e geração do índice semântico.")
+        new_api_key = st.text_input(
+            t("gemini_key_placeholder"), 
+            value=api_key_val,
+            type="password",
+            key="input_gemini_key"
+        )
+        if new_api_key != api_key_val:
+            st.session_state['api_key'] = new_api_key
+            st.rerun()
+
+    # Feedback de validação dentro do expander
+    if dropbox_token_val:
+        if is_dbx_valid:
+            st.success(dbx_conn_msg)
+        else:
+            st.error(dbx_conn_msg)
+    else:
+        st.warning(t("dropbox_token_missing"))
+
+    if api_key_val:
+        if is_gemini_valid:
+            st.success(t("gemini_key_valid"))
+        else:
+            st.error(t("gemini_key_invalid"))
+    else:
+        st.warning(t("gemini_key_warning"))
+
 st.markdown("---")
 
 # 1. Entrada de Dados (MOVIDO PARA O TOPO)
@@ -1268,47 +1336,10 @@ with tab_dropbox:
     if 'dbx_selected_for_processing' not in st.session_state:
         st.session_state['dbx_selected_for_processing'] = None 
 
-    # --- INPUTS (Empilhados Verticalmente) ---
-    st.markdown(t("dropbox_token_instructions"))
-    st.text_input(
-        t("dropbox_token_placeholder"), 
-        type="password",
-        key="dropbox_token"
-    )
-    
-    st.text_input(
-        t("gemini_key_placeholder"), 
-        type="password",
-        key="api_key"
-    )
-
-    # Validações
-    token_valid = False
-    gemini_valid = False
-
-    if st.session_state.get('dropbox_token'):
-        is_connected, msg_connection = check_dropbox_connection_cached(st.session_state['dropbox_token'])
-        if is_connected:
-            token_valid = True
-            st.success(msg_connection)
-        else:
-            st.error(msg_connection)
+    # Apenas renderizar o fluxo se as credenciais forem válidas
+    if not (token_valid and gemini_valid):
+        st.warning(t("dbx_require_credentials_warning"))
     else:
-        st.warning(t("dropbox_token_missing"))
-
-    if st.session_state.get('api_key'):
-        if validate_gemini_api_key_cached(st.session_state['api_key']):
-            gemini_valid = True
-            st.success(t("gemini_key_valid"))
-        else:
-            st.error(t("gemini_key_invalid"))
-    else:
-        st.warning(t("gemini_key_warning"))
-
-    # Apenas renderizar o fluxo se ambos forem válidos
-    if token_valid and gemini_valid:
-        st.markdown("---")
-        
         # Instancia o handler
         dbx = DropboxHandler(st.session_state['dropbox_token'])
         current = st.session_state['dbx_current_path']
@@ -1358,70 +1389,14 @@ with tab_dropbox:
                         
         st.markdown("---")
         
-        # 2. gerar índice (arquivo "_INDEX...") - Nota explicativa sobre a dependência
-        st.subheader(t("semantic_index_title"))
-        note_msg = "💡 *Nota: A geração do índice necessita que os arquivos já tenham sido convertidos para Markdown (.md) anteriormente.*" if st.session_state.get('lang', 'pt') == 'pt' else "💡 *Note: Index generation requires that files have already been converted to Markdown (.md) beforehand.*"
-        st.info(note_msg)
-        
-        if st.button(t("generate_index_dbx_btn"), key="btn_index_dbx_main", use_container_width=True):
-            dest_path = current
-            with st.spinner(t("dbx_index_running_spinner")):
-                index_temp_dir = Path("temp_dropbox_index")
-                index_temp_dir.mkdir(exist_ok=True)
-                
-                md_entries = dbx.list_files_recursive(dest_path, {'.md'})
-                
-                if not md_entries:
-                    st.warning(t("dbx_no_md_found"))
-                else:
-                    downloaded_count = 0
-                    for entry in md_entries:
-                        if dest_path:
-                             rel_path = entry.path_display.replace(dest_path, "", 1).lstrip("/")
-                        else:
-                             rel_path = entry.path_display.lstrip("/")
-                             
-                        local_dest = index_temp_dir / rel_path
-                        local_dest.parent.mkdir(parents=True, exist_ok=True)
-                        
-                        dbx.download_file(entry.path_display, str(local_dest))
-                        downloaded_count += 1
-                    
-                    st.info(t("dbx_downloaded_for_analysis").format(downloaded_count))
-                    
-                    with st.spinner(t("dbx_rlm_processing_spinner")):
-                        indexed_count = generate_index_for_folder(str(index_temp_dir), st.session_state['api_key'], recursive=True)
-                    
-                    if indexed_count == 0:
-                        st.warning(t("dbx_index_no_md_warning"))
-                    else:
-                        pdf_files = list(index_temp_dir.rglob("_INDEX_CONTENT*.pdf"))
-                        if not pdf_files:
-                            st.error(t("dbx_no_index_generated"))
-                        else:
-                            uploaded_indexes = 0
-                            for pdf in pdf_files:
-                                rel_pdf_path = pdf.relative_to(index_temp_dir)
-                                base = dest_path if dest_path != "" else ""
-                                remote_pdf_path = f"{base}/{rel_pdf_path.as_posix()}"
-                                if remote_pdf_path.startswith("//"): remote_pdf_path = remote_pdf_path[1:]
-                                
-                                st.toast(t("dbx_sending_toast") + f": {rel_pdf_path.name}")
-                                dbx.upload_file(str(pdf), remote_pdf_path)
-                                uploaded_indexes += 1
-                            
-                            st.success(t("dbx_index_success").format(uploaded_indexes))
-                    
-                    import shutil
-                    shutil.rmtree(index_temp_dir, ignore_errors=True)
-
-        st.markdown("---")
-
-        # 4. converter arquivos
+        # 2. SEÇÃO DE CONVERSÃO (Conversão vem primeiro!)
         selected_dbx = st.session_state.get('dbx_selected_for_processing')
         if selected_dbx is not None:
             display_sel = selected_dbx if selected_dbx else t("dropbox_raiz")
             st.success(t("dropbox_ready_msg").format(display_sel))
+            
+            # Sub-seção de Conversão
+            st.subheader("🚀 Conversão para Markdown")
             
             # Checkbox de sobrescrever local da aba Dropbox
             dbx_force_overwrite = st.checkbox(
@@ -1435,6 +1410,83 @@ with tab_dropbox:
             if st.button("🚀 " + t("start_processing_btn") + " (Dropbox)", use_container_width=True, key="btn_dbx_convert_action"):
                 st.info(t("mode_hybrid_dropbox"))
                 process_dropbox_batch(selected_dbx, st.session_state['api_key'], overwrite=dbx_force_overwrite)
+                st.rerun()
+
+            st.markdown("---")
+            
+            # 3. SEÇÃO DE ÍNDICE SEMÂNTICO (Abaixo da conversão, condicionada à varredura recursiva)
+            supported_extensions = {'.pdf', '.docx', '.pptx', '.xlsx', '.doc', '.xls', '.csv', '.json', '.xml', '.html', '.zip', '.mp3', '.wav', '.jpg', '.png', '.epub'}
+            
+            with st.spinner(t("dbx_scanning_files")):
+                all_supported_entries = dbx.list_files_recursive(selected_dbx, supported_extensions)
+                md_entries = dbx.list_files_recursive(selected_dbx, {'.md'})
+            
+            # Filtrar md_entries para ignorar arquivos de índice ou ocultos
+            md_entries = [e for e in md_entries if not e.name.startswith("_") and not e.name.startswith(".")]
+            
+            if not md_entries:
+                # Caso A: Nenhum arquivo md em toda a árvore
+                st.subheader(t("semantic_index_title"))
+                st.info(t("dbx_no_md_warning_friendly"))
+            else:
+                # Caso B ou C: Existem md_entries. 
+                # Vamos identificar se existem pastas com arquivos suportados que NÃO contêm arquivos md correspondentes.
+                supported_dirs = set(Path(e.path_display).parent.as_posix() for e in all_supported_entries)
+                md_dirs = set(Path(e.path_display).parent.as_posix() for e in md_entries)
+                pending_dirs = supported_dirs - md_dirs
+                
+                st.subheader(t("semantic_index_title"))
+                
+                if pending_dirs:
+                    st.warning(t("dbx_partial_md_warning"))
+                
+                if st.button(t("generate_index_dbx_btn"), key="btn_index_dbx_main", use_container_width=True):
+                    dest_path = selected_dbx
+                    with st.spinner(t("dbx_index_running_spinner")):
+                        index_temp_dir = Path("temp_dropbox_index")
+                        index_temp_dir.mkdir(exist_ok=True)
+                        
+                        downloaded_count = 0
+                        for entry in md_entries:
+                            if dest_path:
+                                 rel_path = entry.path_display.replace(dest_path, "", 1).lstrip("/")
+                            else:
+                                 rel_path = entry.path_display.lstrip("/")
+                                 
+                            local_dest = index_temp_dir / rel_path
+                            local_dest.parent.mkdir(parents=True, exist_ok=True)
+                            
+                            dbx.download_file(entry.path_display, str(local_dest))
+                            downloaded_count += 1
+                        
+                        st.info(t("dbx_downloaded_for_analysis").format(downloaded_count))
+                        
+                        with st.spinner(t("dbx_rlm_processing_spinner")):
+                            indexed_count = generate_index_for_folder(str(index_temp_dir), st.session_state['api_key'], recursive=True)
+                        
+                        if indexed_count == 0:
+                            st.warning(t("dbx_index_no_md_warning"))
+                        else:
+                            pdf_files = list(index_temp_dir.rglob("_INDEX_CONTENT*.pdf"))
+                            if not pdf_files:
+                                st.error(t("dbx_no_index_generated"))
+                            else:
+                                uploaded_indexes = 0
+                                for pdf in pdf_files:
+                                    rel_pdf_path = pdf.relative_to(index_temp_dir)
+                                    base = dest_path if dest_path != "" else ""
+                                    remote_pdf_path = f"{base}/{rel_pdf_path.as_posix()}"
+                                    if remote_pdf_path.startswith("//"): remote_pdf_path = remote_pdf_path[1:]
+                                    
+                                    st.toast(t("dbx_sending_toast") + f": {rel_pdf_path.name}")
+                                    dbx.upload_file(str(pdf), remote_pdf_path)
+                                    uploaded_indexes += 1
+                                
+                                st.success(t("dbx_index_success").format(uploaded_indexes))
+                        
+                        import shutil
+                        shutil.rmtree(index_temp_dir, ignore_errors=True)
+                        st.rerun()
 
 
 with tab_youtube:
