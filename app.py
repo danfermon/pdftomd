@@ -139,10 +139,10 @@ TRANSLATIONS = {
         "youtube_info": "ℹ️ Transcrição salva na pasta `markdown_output`.",
         "youtube_url_placeholder": "Cole uma URL do YouTube:",
         "ia_config_subheader": "2. Configuração de IA (Opcional)",
-        "use_gemini_checkbox": "Usar Google Gemini AI? (Recomendado para PDFs escaneados ruins ou imagens complexas)",
-        "gemini_key_placeholder": "Cole sua Chave API Gemini:",
+        "use_gemini_checkbox": "Usar Inteligência Artificial (Gemini / OpenAI)? (Recomendado para PDFs escaneados ruins ou imagens complexas)",
+        "gemini_key_placeholder": "Cole sua Chave API (Gemini / OpenAI):",
         "gemini_key_valid": "✅ Chave Gemini validada!",
-        "gemini_force_checkbox": "Forçar uso do Gemini mesmo se Tesseract funcionar?",
+        "gemini_force_checkbox": "Forçar uso de IA (Gemini / OpenAI) mesmo se Tesseract funcionar?",
         "gemini_force_help": "Ignora OCR local e usa nuvem para tudo (custo/tempo maior).",
         "gemini_key_invalid": "❌ Chave inválida.",
         "gemini_key_warning": "⚠️ Insira a chave para ativar o modo IA.",
@@ -321,10 +321,10 @@ TRANSLATIONS = {
         "youtube_info": "ℹ️ Transcript saved in folder `markdown_output`.",
         "youtube_url_placeholder": "Paste a YouTube URL:",
         "ia_config_subheader": "2. AI Configuration (Optional)",
-        "use_gemini_checkbox": "Use Google Gemini AI? (Recommended for poor quality scanned PDFs or complex images)",
-        "gemini_key_placeholder": "Paste your Gemini API Key:",
+        "use_gemini_checkbox": "Use Artificial Intelligence (Gemini / OpenAI)? (Recommended for poor quality scanned PDFs or complex images)",
+        "gemini_key_placeholder": "Paste your API Key (Gemini / OpenAI):",
         "gemini_key_valid": "✅ Gemini Key validated!",
-        "gemini_force_checkbox": "Force Gemini usage even if Tesseract works?",
+        "gemini_force_checkbox": "Force AI usage (Gemini / OpenAI) even if Tesseract works?",
         "gemini_force_help": "Bypasses local OCR and uses the cloud for everything (higher cost/time).",
         "gemini_key_invalid": "❌ Invalid Key.",
         "gemini_key_warning": "⚠️ Insert the key to enable AI mode.",
@@ -611,12 +611,123 @@ st.markdown("""
         color: white;
         border-color: #1e7e34;
     }
+    
+    /* Card da Pasta Atual */
+    .current-folder-card {
+        background: linear-gradient(135deg, #1E90FF 0%, #0056b3 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(30, 144, 255, 0.25);
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        text-align: left;
+    }
+    .current-folder-card .folder-icon {
+        font-size: 36px;
+    }
+    .current-folder-card .folder-details {
+        display: flex;
+        flex-direction: column;
+    }
+    .current-folder-card .folder-name {
+        font-size: 22px;
+        font-weight: 800;
+        line-height: 1.2;
+    }
+    .current-folder-card .folder-path {
+        font-size: 13px;
+        opacity: 0.85;
+        margin-top: 5px;
+        font-family: monospace;
+        word-break: break-all;
+    }
+
+    /* Recuo de subpastas e linha vertical */
+    div[data-testid="column"]:has(div.subfolders-marker) {
+        border-left: 3px solid #dee2e6;
+        padding-left: 20px !important;
+        margin-left: 10px;
+    }
+
+    /* Botões Grandes de Navegação (Ícone + Texto) */
+    div.element-container:has(div.up-btn-marker) + div.element-container div.stButton button,
+    div.element-container:has(div.sel-btn-marker) + div.element-container div.stButton button {
+        height: auto !important;
+        padding: 15px 10px !important;
+        border-radius: 12px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        text-align: center !important;
+        line-height: 1.4 !important;
+        white-space: pre-line !important;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05) !important;
+        transition: all 0.2s ease !important;
+    }
+
+    div.element-container:has(div.up-btn-marker) + div.element-container div.stButton button {
+        background-color: #f8f9fa !important;
+        color: #495057 !important;
+        border: 1px solid #ced4da !important;
+    }
+    div.element-container:has(div.up-btn-marker) + div.element-container div.stButton button:hover {
+        background-color: #e2e6ea !important;
+        color: #212529 !important;
+        border-color: #adb5bd !important;
+        transform: translateY(-1px) !important;
+    }
+
+    div.element-container:has(div.sel-btn-marker) + div.element-container div.stButton button {
+        background-color: #28a745 !important;
+        color: white !important;
+        border: 1px solid #218838 !important;
+    }
+    div.element-container:has(div.sel-btn-marker) + div.element-container div.stButton button:hover {
+        background-color: #218838 !important;
+        border-color: #1e7e34 !important;
+        transform: translateY(-1px) !important;
+    }
+
+    /* Estilização para separar o ícone (primeira linha) do texto */
+    div.element-container:has(div.up-btn-marker) + div.element-container div.stButton button p::first-line,
+    div.element-container:has(div.sel-btn-marker) + div.element-container div.stButton button p::first-line {
+        font-size: 32px !important;
+        font-weight: bold !important;
+    }
+
+    /* Botão Amarelo de Subpasta */
+    div.element-container:has(div.yellow-btn-marker) + div.element-container div.stButton button {
+        background-color: #ffc107 !important;
+        color: #212529 !important;
+        border: 1px solid #e0a800 !important;
+        border-radius: 8px !important;
+        padding: 8px 16px !important;
+        font-size: 15px !important;
+        font-weight: 600 !important;
+        text-align: left !important;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05) !important;
+        transition: all 0.2s ease !important;
+        display: block !important;
+        width: 100% !important;
+    }
+    div.element-container:has(div.yellow-btn-marker) + div.element-container div.stButton button:hover {
+        background-color: #e0a800 !important;
+        color: #212529 !important;
+        border-color: #d39e00 !important;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1) !important;
+        transform: translateY(-1px) !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
 # Inicialização de Estado
 if 'api_key' not in st.session_state:
-    st.session_state['api_key'] = os.getenv("GOOGLE_GEMINI_API_KEY", "")
+    st.session_state['api_key'] = os.getenv("GOOGLE_GEMINI_API_KEY") or os.getenv("OPENAI_API_KEY", "")
 
 if 'dropbox_token' not in st.session_state:
     st.session_state['dropbox_token'] = os.getenv("DROPBOX_ACCESS_TOKEN", "")
@@ -648,9 +759,17 @@ def clean_output_directory(output_dir_name="markdown_output"):
     return False
 
 def validate_gemini_api_key(api_key: str) -> bool:
-    """Tenta configurar o SDK e listar modelos para validar a chave API."""
+    """Tenta configurar o SDK ou faz request para validar a chave API (Gemini ou OpenAI)."""
     if not api_key:
         return False
+    if api_key.startswith("sk-"):
+        try:
+            import requests
+            headers = {"Authorization": f"Bearer {api_key}"}
+            response = requests.get("https://api.openai.com/v1/models", headers=headers, timeout=5)
+            return response.status_code == 200
+        except Exception:
+            return False
     try:
         genai.configure(api_key=api_key)
         # Tenta listar modelos para garantir que a chave é válida
@@ -670,6 +789,128 @@ def check_dropbox_connection_cached(token: str) -> tuple:
         return dbx.check_connection()
     except Exception as e:
         return False, str(e)
+
+
+def show_credentials_setup_screen(is_gemini_valid, is_dbx_valid, api_key_val, dropbox_token_val, dbx_conn_msg):
+    st.markdown("""
+        <style>
+        .cred-wrapper {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding-top: 30px;
+        }
+        .cred-container {
+            width: 700px;
+            padding: 40px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.25);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .cred-title {
+            font-size: 28px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #1E90FF 0%, #3CB371 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 5px;
+            text-align: center;
+        }
+        .cred-subtitle {
+            font-size: 14px;
+            color: #ccc;
+            margin-bottom: 25px;
+            text-align: center;
+        }
+        /* Adjustments for setup screen form */
+        div[data-testid="stForm"] {
+            border: none !important;
+            padding: 0 !important;
+            background-color: transparent !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    st.markdown('<div class="cred-wrapper">', unsafe_allow_html=True)
+    st.markdown('<div class="cred-container">', unsafe_allow_html=True)
+    st.markdown('<h2 class="cred-title">🔑 Configurações de API e Acesso</h2>', unsafe_allow_html=True)
+    st.markdown('<p class="cred-subtitle">Insira suas chaves do Dropbox e Gemini para acessar o sistema</p>', unsafe_allow_html=True)
+    
+    with st.form("setup_cred_form", clear_on_submit=False):
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown(t("dropbox_token_instructions"))
+            dbx_token = st.text_input(
+                t("dropbox_token_placeholder"), 
+                value=dropbox_token_val,
+                type="password",
+                key="setup_dropbox_token"
+            )
+            
+        with col2:
+            if st.session_state.get('lang', 'pt') == 'pt':
+                st.markdown("**Chave API (Gemini / OpenAI):**\n\nConfigure sua chave para habilitar processamento em lote via IA e geração do índice semântico.")
+            else:
+                st.markdown("**API Key (Gemini / OpenAI):**\n\nConfigure your key to enable batch processing via AI and semantic index generation.")
+            gemini_key = st.text_input(
+                t("gemini_key_placeholder"), 
+                value=api_key_val,
+                type="password",
+                key="setup_gemini_key"
+            )
+            
+        submit = st.form_submit_button("Validar e Entrar", use_container_width=True)
+        
+        if submit:
+            st.session_state['dropbox_token'] = dbx_token
+            st.session_state['api_key'] = gemini_key
+            st.rerun()
+
+    # Feedbacks
+    if dropbox_token_val:
+        if is_dbx_valid:
+            st.success(dbx_conn_msg)
+        else:
+            st.error(dbx_conn_msg)
+    else:
+        st.warning(t("dropbox_token_missing"))
+
+    if api_key_val:
+        if is_gemini_valid:
+            if api_key_val.startswith("sk-"):
+                st.success("✅ Chave OpenAI validada!" if st.session_state.get('lang', 'pt') == 'pt' else "✅ OpenAI Key validated!")
+            else:
+                st.success(t("gemini_key_valid"))
+        else:
+            if api_key_val.startswith("sk-"):
+                st.error("❌ Chave OpenAI inválida." if st.session_state.get('lang', 'pt') == 'pt' else "❌ Invalid OpenAI Key.")
+            else:
+                st.error(t("gemini_key_invalid"))
+    else:
+        st.warning(t("gemini_key_warning"))
+
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+# --- Validação e Bloqueio de Credenciais ---
+api_key_val = st.session_state.get('api_key', '')
+dropbox_token_val = st.session_state.get('dropbox_token', '')
+
+is_gemini_valid = validate_gemini_api_key_cached(api_key_val) if api_key_val else False
+is_dbx_valid = False
+dbx_conn_msg = ""
+if dropbox_token_val:
+    is_dbx_valid, dbx_conn_msg = check_dropbox_connection_cached(dropbox_token_val)
+
+credentials_valid = is_gemini_valid and is_dbx_valid
+
+if not credentials_valid:
+    show_credentials_setup_screen(is_gemini_valid, is_dbx_valid, api_key_val, dropbox_token_val, dbx_conn_msg)
+    st.stop()
 
 
 def run_file_pipeline(input_path_str: str, output_path_str: str, gemini_key: str):
@@ -1025,6 +1266,11 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
+    if st.button("🔑 Alterar Credenciais", use_container_width=True):
+        st.session_state['api_key'] = ""
+        st.session_state['dropbox_token'] = ""
+        st.rerun()
+
     if st.button(t("logout_btn"), use_container_width=True):
         st.session_state['authenticated'] = False
         st.session_state['username'] = ""
@@ -1136,64 +1382,10 @@ if app_mode == t("nav_user_mgmt"):
 # --- Layout da Aplicação Original ---
 st.title(t("process_docs_title"))
 
-# 1. Configurações de API e Acesso (Expander Inteligente no Topo)
-api_key_val = st.session_state.get('api_key', '')
-dropbox_token_val = st.session_state.get('dropbox_token', '')
-
-is_gemini_valid = validate_gemini_api_key_cached(api_key_val) if api_key_val else False
-is_dbx_valid = False
-dbx_conn_msg = ""
-if dropbox_token_val:
-    is_dbx_valid, dbx_conn_msg = check_dropbox_connection_cached(dropbox_token_val)
-
+# As credenciais são validadas na tela inicial. Se chegamos aqui, elas estão corretas.
 token_valid = is_dbx_valid
 gemini_valid = is_gemini_valid
-credentials_valid = is_gemini_valid and is_dbx_valid
-show_credentials_expanded = not credentials_valid
-
-with st.expander(t("credentials_expander_title"), expanded=show_credentials_expanded):
-    col_cred1, col_cred2 = st.columns([1, 1])
-    
-    with col_cred1:
-        st.markdown(t("dropbox_token_instructions"))
-        new_dropbox_token = st.text_input(
-            t("dropbox_token_placeholder"), 
-            value=dropbox_token_val,
-            type="password",
-            key="input_dropbox_token"
-        )
-        if new_dropbox_token != dropbox_token_val:
-            st.session_state['dropbox_token'] = new_dropbox_token
-            st.rerun()
-            
-    with col_cred2:
-        st.markdown("**Gemini API Key:**\n\nConfigure sua chave para habilitar processamento em lote via IA e geração do índice semântico.")
-        new_api_key = st.text_input(
-            t("gemini_key_placeholder"), 
-            value=api_key_val,
-            type="password",
-            key="input_gemini_key"
-        )
-        if new_api_key != api_key_val:
-            st.session_state['api_key'] = new_api_key
-            st.rerun()
-
-    # Feedback de validação dentro do expander
-    if dropbox_token_val:
-        if is_dbx_valid:
-            st.success(dbx_conn_msg)
-        else:
-            st.error(dbx_conn_msg)
-    else:
-        st.warning(t("dropbox_token_missing"))
-
-    if api_key_val:
-        if is_gemini_valid:
-            st.success(t("gemini_key_valid"))
-        else:
-            st.error(t("gemini_key_invalid"))
-    else:
-        st.warning(t("gemini_key_warning"))
+credentials_valid = True
 
 st.markdown("---")
 
@@ -1320,8 +1512,18 @@ print(path)
                     if not gemini_key:
                         st.error(t("gemini_key_required_error"))
                     else:
-                        with st.spinner(t("index_running_spinner")):
-                            indexed_count = generate_index_for_folder(current_dir, gemini_key, recursive=True)
+                        progress_bar_idx = st.progress(0)
+                        log_area_idx = st.empty()
+                        
+                        def local_progress_callback(curr, tot, name):
+                            progress_bar_idx.progress(curr / tot)
+                            log_area_idx.text(f"Indexando arquivo {curr} de {tot}: {name}")
+                            
+                        indexed_count = generate_index_for_folder(current_dir, gemini_key, recursive=True, progress_callback=local_progress_callback)
+                        
+                        progress_bar_idx.empty()
+                        log_area_idx.empty()
+                        
                         if indexed_count > 0:
                             st.success(t("index_success").format(indexed_count))
                         else:
@@ -1345,148 +1547,211 @@ with tab_dropbox:
         current = st.session_state['dbx_current_path']
         display_path = current if current else t("dropbox_raiz")
         
-        # 1. selecionar pastas, subir nível etc (com botão de selecionar pasta ao lado)
-        col_path_info, col_select_btn = st.columns([2, 1], vertical_alignment="center")
-        with col_path_info:
-            st.subheader(f"📂 {t('dropbox_current_folder')}: `{display_path}`")
-        with col_select_btn:
-            if st.button(t("dropbox_select_folder_btn"), use_container_width=True, type="primary", key="btn_dbx_select_this_folder"):
+        # --- NOVO LAYOUT DA PASTA SELECIONADA (CARD AZUL) ---
+        folder_name = Path(current).name if current else "Raiz"
+        folder_path = current if current else "/"
+        
+        st.markdown(f"""
+            <div class="current-folder-card">
+                <span class="folder-icon">📂</span>
+                <div class="folder-details">
+                    <div class="folder-name">{folder_name}</div>
+                    <div class="folder-path">{folder_path}</div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # --- BOTÕES DE NAVEGAÇÃO E SELEÇÃO (ÍCONES GRANDES COM TEXTO ABAIXO) ---
+        col_up_btn, col_sel_btn = st.columns(2)
+        
+        with col_up_btn:
+            st.markdown('<div class="up-btn-marker"></div>', unsafe_allow_html=True)
+            is_at_root = (current == "")
+            if st.button("⬆️\nSubir Nível", key="dbx_up_btn", use_container_width=True, disabled=is_at_root):
+                st.session_state['dbx_current_path'] = str(Path(current).parent).replace("\\", "/")
+                if st.session_state['dbx_current_path'] == ".": 
+                    st.session_state['dbx_current_path'] = ""
+                st.rerun()
+                
+        with col_sel_btn:
+            st.markdown('<div class="sel-btn-marker"></div>', unsafe_allow_html=True)
+            is_selected = (st.session_state.get('dbx_selected_for_processing') == current)
+            label = "🎯\nSelecionado" if is_selected else "✅\nSelecionar esta pasta"
+            if st.button(label, key="btn_dbx_select_this_folder", use_container_width=True):
                 st.session_state['dbx_selected_for_processing'] = current
                 # Limpa outras seleções para evitar conflito
                 st.session_state['selected_local_path'] = None
                 st.session_state['selected_batch_dir'] = None
                 st.session_state['processed_file'] = None
-                st.success(t("dropbox_selected_msg") + f": {display_path}")
+                st.success(t("dropbox_selected_msg") + f": {folder_path}")
                 st.rerun()
         
-        # Botão Subir Nível
-        col_nav_1, _ = st.columns([1, 4])
-        with col_nav_1:
-            if current != "":
-                if st.button(t("dropbox_up_level"), use_container_width=True, key="dbx_up_btn"):
-                    # Remove o último segmento do path
-                    st.session_state['dbx_current_path'] = str(Path(current).parent).replace("\\", "/")
-                    if st.session_state['dbx_current_path'] == ".": 
-                        st.session_state['dbx_current_path'] = ""
-                    st.rerun()
-            else:
-                st.button(t("dropbox_up_level") + " (" + t("dropbox_raiz") + ")", disabled=True, use_container_width=True, key="dbx_up_btn_disabled")
-                
-        st.caption(t("dropbox_subfolders_caption"))
+        st.divider()
         
-        # Listagem de Subpastas
+        # --- LISTAGEM DE SUBPASTAS COM RECUO E LINHA VERTICAL (BOTÕES AMARELOS) ---
         subfolders = dbx.list_subfolders(current)
-        if not subfolders:
-            st.caption(t("dropbox_no_subfolders"))
-        else:
-            # Grid de pastas para economizar espaço
-            cols = st.columns(3)
-            for idx, folder in enumerate(subfolders):
-                with cols[idx % 3]:
+        
+        col_indent, col_subfolders = st.columns([1, 19])
+        with col_subfolders:
+            st.markdown('<div class="subfolders-marker"></div>', unsafe_allow_html=True)
+            st.caption(t("dropbox_subfolders_caption"))
+            if not subfolders:
+                st.caption(t("dropbox_no_subfolders"))
+            else:
+                for idx, folder in enumerate(subfolders):
+                    st.markdown('<div class="yellow-btn-marker"></div>', unsafe_allow_html=True)
                     if st.button(f"📁 {folder.name}", key=f"btn_folder_{folder.id}", use_container_width=True):
                         st.session_state['dbx_current_path'] = folder.path_display
                         st.rerun()
                         
         st.markdown("---")
         
-        # 2. SEÇÃO DE CONVERSÃO (Conversão vem primeiro!)
+        # --- SEÇÃO DE PROCESSAMENTO HABILITADA APENAS APÓS SELEÇÃO ---
         selected_dbx = st.session_state.get('dbx_selected_for_processing')
-        if selected_dbx is not None:
+        is_action_enabled = (selected_dbx is not None)
+        
+        if is_action_enabled:
             display_sel = selected_dbx if selected_dbx else t("dropbox_raiz")
             st.success(t("dropbox_ready_msg").format(display_sel))
+        else:
+            st.warning("⚠️ Selecione uma pasta clicando em 'Selecionar esta pasta' acima para habilitar as ações de processamento.")
             
-            # Sub-seção de Conversão
-            st.subheader("🚀 Conversão para Markdown")
-            
-            # Checkbox de sobrescrever local da aba Dropbox
-            dbx_force_overwrite = st.checkbox(
-                t("overwrite_checkbox"), 
-                value=st.session_state.get('dbx_force_overwrite', False),
-                help=t("overwrite_help"),
-                key="dbx_overwrite_checkbox"
-            )
-            st.session_state['dbx_force_overwrite'] = dbx_force_overwrite
-            
-            if st.button("🚀 " + t("start_processing_btn") + " (Dropbox)", use_container_width=True, key="btn_dbx_convert_action"):
-                st.info(t("mode_hybrid_dropbox"))
-                process_dropbox_batch(selected_dbx, st.session_state['api_key'], overwrite=dbx_force_overwrite)
-                st.rerun()
+        # Sub-seção de Conversão
+        st.subheader("🚀 Conversão para Markdown")
+        
+        # Checkbox de sobrescrever local da aba Dropbox
+        dbx_force_overwrite = st.checkbox(
+            t("overwrite_checkbox"), 
+            value=st.session_state.get('dbx_force_overwrite', False),
+            help=t("overwrite_help"),
+            key="dbx_overwrite_checkbox",
+            disabled=not is_action_enabled
+        )
+        st.session_state['dbx_force_overwrite'] = dbx_force_overwrite
+        
+        if st.button("🚀 " + t("start_processing_btn") + " (Dropbox)", use_container_width=True, key="btn_dbx_convert_action", disabled=not is_action_enabled):
+            st.info(t("mode_hybrid_dropbox"))
+            process_dropbox_batch(selected_dbx, st.session_state['api_key'], overwrite=dbx_force_overwrite)
+            st.rerun()
 
-            st.markdown("---")
-            
-            # 3. SEÇÃO DE ÍNDICE SEMÂNTICO (Abaixo da conversão, condicionada à varredura recursiva)
-            supported_extensions = {'.pdf', '.docx', '.pptx', '.xlsx', '.doc', '.xls', '.csv', '.json', '.xml', '.html', '.zip', '.mp3', '.wav', '.jpg', '.png', '.epub'}
-            
+        st.markdown("---")
+        
+        # 3. SEÇÃO DE ÍNDICE SEMÂNTICO (Abaixo da conversão, condicionado à varredura recursiva)
+        supported_extensions = {'.pdf', '.docx', '.pptx', '.xlsx', '.doc', '.xls', '.csv', '.json', '.xml', '.html', '.zip', '.mp3', '.wav', '.jpg', '.png', '.epub'}
+        
+        if is_action_enabled:
             with st.spinner(t("dbx_scanning_files")):
                 all_supported_entries = dbx.list_files_recursive(selected_dbx, supported_extensions)
                 md_entries = dbx.list_files_recursive(selected_dbx, {'.md'})
-            
             # Filtrar md_entries para ignorar arquivos de índice ou ocultos
             md_entries = [e for e in md_entries if not e.name.startswith("_") and not e.name.startswith(".")]
+        else:
+            all_supported_entries = []
+            md_entries = []
             
-            if not md_entries:
-                # Caso A: Nenhum arquivo md em toda a árvore
-                st.subheader(t("semantic_index_title"))
-                st.info(t("dbx_no_md_warning_friendly"))
-            else:
-                # Caso B ou C: Existem md_entries. 
-                # Vamos identificar se existem pastas com arquivos suportados que NÃO contêm arquivos md correspondentes.
-                supported_dirs = set(Path(e.path_display).parent.as_posix() for e in all_supported_entries)
-                md_dirs = set(Path(e.path_display).parent.as_posix() for e in md_entries)
-                pending_dirs = supported_dirs - md_dirs
+        st.subheader(t("semantic_index_title"))
+        
+        if not is_action_enabled:
+            st.button(t("generate_index_dbx_btn"), key="btn_index_dbx_main", use_container_width=True, disabled=True)
+        elif not md_entries:
+            # Caso A: Nenhum arquivo md em toda a árvore
+            st.info(t("dbx_no_md_warning_friendly"))
+        else:
+            # Caso B ou C: Existem md_entries. 
+            supported_dirs = set(Path(e.path_display).parent.as_posix() for e in all_supported_entries)
+            md_dirs = set(Path(e.path_display).parent.as_posix() for e in md_entries)
+            pending_dirs = supported_dirs - md_dirs
+            
+            if pending_dirs:
+                st.warning(t("dbx_partial_md_warning"))
+            
+            if st.button(t("generate_index_dbx_btn"), key="btn_index_dbx_main", use_container_width=True):
+                dest_path = selected_dbx
                 
-                st.subheader(t("semantic_index_title"))
-                
-                if pending_dirs:
-                    st.warning(t("dbx_partial_md_warning"))
-                
-                if st.button(t("generate_index_dbx_btn"), key="btn_index_dbx_main", use_container_width=True):
-                    dest_path = selected_dbx
-                    with st.spinner(t("dbx_index_running_spinner")):
-                        index_temp_dir = Path("temp_dropbox_index")
-                        index_temp_dir.mkdir(exist_ok=True)
-                        
-                        downloaded_count = 0
-                        for entry in md_entries:
-                            if dest_path:
+                # --- FILTRAR PASTAS QUE JÁ POSSUEM ÍNDICE NO DROPBOX ---
+                checked_dirs = {}
+                filtered_md_entries = []
+                for entry in md_entries:
+                    remote_dir = Path(entry.path_display).parent.as_posix()
+                    if remote_dir not in checked_dirs:
+                        remote_index_path = f"{remote_dir}/_INDEX_CONTENT.pdf"
+                        if remote_index_path.startswith("//"):
+                            remote_index_path = remote_index_path[1:]
+                        checked_dirs[remote_dir] = dbx.file_exists(remote_index_path)
+                    
+                    if not checked_dirs[remote_dir]:
+                        filtered_md_entries.append(entry)
+
+                if not filtered_md_entries:
+                    st.info("💡 Todas as pastas já possuem índices semânticos atualizados no Dropbox.")
+                else:
+                    # --- PROGRESSO PARA DOWNLOAD ---
+                    progress_bar_dl = st.progress(0)
+                    log_area_dl = st.empty()
+                    
+                    index_temp_dir = Path("temp_dropbox_index")
+                    index_temp_dir.mkdir(exist_ok=True)
+                    
+                    downloaded_count = 0
+                    for i, entry in enumerate(filtered_md_entries):
+                        log_area_dl.text(f"Baixando arquivo para análise: {entry.name} ({i+1}/{len(filtered_md_entries)})")
+                        if dest_path:
+                             # Remoção de prefixo insensível a maiúsculas/minúsculas
+                             path_lower = entry.path_display.lower()
+                             dest_lower = dest_path.lower()
+                             if path_lower.startswith(dest_lower):
+                                 rel_path = entry.path_display[len(dest_lower):].lstrip("/")
+                             else:
                                  rel_path = entry.path_display.replace(dest_path, "", 1).lstrip("/")
-                            else:
-                                 rel_path = entry.path_display.lstrip("/")
-                                 
-                            local_dest = index_temp_dir / rel_path
-                            local_dest.parent.mkdir(parents=True, exist_ok=True)
-                            
-                            dbx.download_file(entry.path_display, str(local_dest))
-                            downloaded_count += 1
-                        
-                        st.info(t("dbx_downloaded_for_analysis").format(downloaded_count))
-                        
-                        with st.spinner(t("dbx_rlm_processing_spinner")):
-                            indexed_count = generate_index_for_folder(str(index_temp_dir), st.session_state['api_key'], recursive=True)
-                        
-                        if indexed_count == 0:
-                            st.warning(t("dbx_index_no_md_warning"))
                         else:
-                            pdf_files = list(index_temp_dir.rglob("_INDEX_CONTENT*.pdf"))
-                            if not pdf_files:
-                                st.error(t("dbx_no_index_generated"))
-                            else:
-                                uploaded_indexes = 0
-                                for pdf in pdf_files:
-                                    rel_pdf_path = pdf.relative_to(index_temp_dir)
-                                    base = dest_path if dest_path != "" else ""
-                                    remote_pdf_path = f"{base}/{rel_pdf_path.as_posix()}"
-                                    if remote_pdf_path.startswith("//"): remote_pdf_path = remote_pdf_path[1:]
-                                    
-                                    st.toast(t("dbx_sending_toast") + f": {rel_pdf_path.name}")
-                                    dbx.upload_file(str(pdf), remote_pdf_path)
-                                    uploaded_indexes += 1
-                                
-                                st.success(t("dbx_index_success").format(uploaded_indexes))
+                             rel_path = entry.path_display.lstrip("/")
+                             
+                        local_dest = index_temp_dir / rel_path
+                        local_dest.parent.mkdir(parents=True, exist_ok=True)
                         
-                        import shutil
-                        shutil.rmtree(index_temp_dir, ignore_errors=True)
-                        st.rerun()
+                        dbx.download_file(entry.path_display, str(local_dest))
+                        downloaded_count += 1
+                        progress_bar_dl.progress(downloaded_count / len(filtered_md_entries))
+                    
+                    progress_bar_dl.empty()
+                    log_area_dl.empty()
+                    
+                    # --- PROGRESSO PARA INDEXAÇÃO ---
+                    progress_bar_idx = st.progress(0)
+                    log_area_idx = st.empty()
+                    
+                    def rlm_progress_callback(curr, tot, name):
+                        progress_bar_idx.progress(curr / tot)
+                        log_area_idx.text(f"Indexando arquivo {curr} de {tot}: {name}")
+                    
+                    indexed_count = generate_index_for_folder(str(index_temp_dir), st.session_state['api_key'], recursive=True, progress_callback=rlm_progress_callback)
+                    
+                    progress_bar_idx.empty()
+                    log_area_idx.empty()
+                    
+                    if indexed_count == 0:
+                        st.warning(t("dbx_index_no_md_warning"))
+                    else:
+                        pdf_files = list(index_temp_dir.rglob("_INDEX_CONTENT*.pdf"))
+                        if not pdf_files:
+                            st.error(t("dbx_no_index_generated"))
+                        else:
+                            uploaded_indexes = 0
+                            for pdf in pdf_files:
+                                rel_pdf_path = pdf.relative_to(index_temp_dir)
+                                base = dest_path if dest_path != "" else ""
+                                remote_pdf_path = f"{base}/{rel_pdf_path.as_posix()}"
+                                if remote_pdf_path.startswith("//"): remote_pdf_path = remote_pdf_path[1:]
+                                
+                                st.toast(t("dbx_sending_toast") + f": {rel_pdf_path.name}")
+                                dbx.upload_file(str(pdf), remote_pdf_path)
+                                uploaded_indexes += 1
+                            
+                            st.success(t("dbx_index_success").format(uploaded_indexes))
+                    
+                    import shutil
+                    shutil.rmtree(index_temp_dir, ignore_errors=True)
+                    st.rerun()
 
 
 with tab_youtube:

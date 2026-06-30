@@ -11,11 +11,26 @@ from pathlib import Path
 
 def validate_gemini_api_key(api_key: str) -> bool:
     """
-    Tenta configurar o SDK e listar modelos para validar a chave API.
+    Tenta configurar o SDK/fazer request para validar a chave API (Gemini ou OpenAI).
     """
     if not api_key:
         print("Chave API vazia.")
         return False
+    if api_key.startswith("sk-"):
+        try:
+            import requests
+            headers = {"Authorization": f"Bearer {api_key}"}
+            response = requests.get("https://api.openai.com/v1/models", headers=headers, timeout=5)
+            if response.status_code == 200:
+                print("Chave API OpenAI validada com sucesso.")
+                return True
+            else:
+                print(f"Erro ao validar chave API OpenAI. Código: {response.status_code}")
+                return False
+        except Exception as e:
+            print(f"Erro ao validar a chave API OpenAI. Erro: {e}")
+            return False
+            
     try:
         genai.configure(api_key=api_key)
         # Tenta listar modelos para garantir que a chave é válida

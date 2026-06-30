@@ -101,11 +101,116 @@ def ocr_local_tesseract(pdf_path: str, output_md: str) -> bool:
 
 def extract_ocr_to_markdown_gemini(pdf_path: str, output_md: str, api_key: str):
     """
-    Roda OCR e extração estruturada em um PDF escaneado usando Gemini Multimodal,
+    Roda OCR e extração estruturada em um PDF escaneado usando Gemini Multimodal ou OpenAI,
     processando uma página por vez para evitar bloqueios de conteúdo em documentos longos.
     """
     pdf_filename = os.path.basename(pdf_path)
     
+    is_openai = api_key.startswith("sk-")
+    
+    if is_openai:
+        import base64
+        import io
+        import requests
+        
+        # 1. Conversão para Imagens
+        pil_images = pdf_to_pil_images(pdf_path)
+        if not pil_images:
+            return False
+
+        full_markdown_content = []
+        
+        # 2. Processamento Página por Página
+        for i, img_page in enumerate(pil_images):
+            page_num = i + 1
+            print(f"-> Processando página {page_num}/{len(pil_images)} via OpenAI (gpt-4o-mini)...")
+            
+            prompt_text = f"""
+            A imagem a seguir é a página {page_num} de um documento.
+            
+            Sua única tarefa é realizar o OCR e extrair todo o conteúdo textual desta imagem.
+            
+            Preserve a estrutura original (parágrafos, títulos, listas, tabelas, etc.).
+            
+            Formate a saída inteiramente em Markdown. Use cabeçalhos (#, ##, ###) para títulos e seções.
+            
+            Não inclua nenhuma explicação, introdução, ou texto adicional antes ou depois do conteúdo Markdown.
+            
+            Gere o conteúdo Markdown para a Página {page_num}:
+            """
+            
+            # Converter imagem PIL para base64 JPEG
+            buffered = io.BytesIO()
+            img_page.save(buffered, format="JPEG")
+            img_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+            
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}"
+            }
+            
+            payload = {
+                "model": "gpt-4o-mini",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": prompt_text
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{img_base64}"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "max_tokens": 4096
+            }
+            
+            try:
+                response = requests.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=120
+                )
+                response.raise_for_status()
+                res_data = response.json()
+                markdown_content = res_data["choices"][0]["message"]["content"].strip()
+                
+                # Limpeza: Remove blocos de código Markdown (```markdown ... ```) se a OpenAI os adicionar
+                if markdown_content.lower().startswith("```markdown"):
+                    markdown_content = markdown_content[len("```markdown"):].strip()
+                if markdown_content.endswith("```"):
+                    markdown_content = markdown_content[:-len("```")].strip()
+
+                if not markdown_content:
+                    print(f"Alerta: Resposta da OpenAI para a página {page_num} está vazia.")
+                    full_markdown_content.append(f"\n\n# ERRO DE EXTRAÇÃO NA PÁGINA {page_num}\n\n")
+                else:
+                    # Adiciona um cabeçalho de página para estruturação
+                    full_markdown_content.append(f"\n\n# PÁGINA {page_num}\n\n{markdown_content}")
+                    
+            except Exception as e:
+                print(f"Erro ao chamar a API OpenAI para a página {page_num}: {e}")
+                full_markdown_content.append(f"\n\n# ERRO DE API NA PÁGINA {page_num}: {e}\n\n")
+                
+        # 3. Salvar o resultado concatenado
+        if full_markdown_content:
+            final_output = "\n".join(full_markdown_content)
+            with open(output_md, 'w', encoding='utf-8-sig') as f:
+                f.write(final_output)
+                
+            print(f"\nOCR e Extração (OpenAI) concluídos e salvos em: {output_md}")
+            return True
+        else:
+            print(f"Falha total: Nenhuma página foi processada com sucesso para {pdf_filename}.")
+            return False
+
     # 1. Configuração do Gemini
     try:
         genai.configure(api_key=api_key)
@@ -168,7 +273,72 @@ def extract_ocr_to_markdown_gemini(pdf_path: str, output_md: str, api_key: str):
 
         except Exception as e:
             print(f"Erro ao chamar a API Gemini para a página {page_num}: {e}")
-            # Se falhar, adiciona um placeholder de erro e continua para a próxima página
+            # Tenta Fallback para OpenAI se houver chave disponível
+            openai_key = os.getenv("OPENAI_API_KEY")
+            if openai_key:
+                print(f"-> Tentando fallback para OpenAI (gpt-4o-mini) na página {page_num}...")
+                try:
+                    import base64
+                    import io
+                    import requests
+                    
+                    buffered = io.BytesIO()
+                    img_page.save(buffered, format="JPEG")
+                    img_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+                    
+                    headers = {
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {openai_key}"
+                    }
+                    
+                    payload = {
+                        "model": "gpt-4o-mini",
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": prompt_text
+                                    },
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {
+                                            "url": f"data:image/jpeg;base64,{img_base64}"
+                                        }
+                                    }
+                                ]
+                            }
+                        ],
+                        "max_tokens": 4096
+                    }
+                    
+                    response = requests.post(
+                        "https://api.openai.com/v1/chat/completions",
+                        headers=headers,
+                        json=payload,
+                        timeout=120
+                    )
+                    response.raise_for_status()
+                    res_data = response.json()
+                    markdown_content = res_data["choices"][0]["message"]["content"].strip()
+                    
+                    if markdown_content.lower().startswith("```markdown"):
+                        markdown_content = markdown_content[len("```markdown"):].strip()
+                    if markdown_content.endswith("```"):
+                        markdown_content = markdown_content[:-len("```")].strip()
+                        
+                    if not markdown_content:
+                        print(f"Alerta: Resposta da OpenAI (fallback) para a página {page_num} está vazia.")
+                        full_markdown_content.append(f"\n\n# ERRO DE EXTRAÇÃO NA PÁGINA {page_num}\n\n")
+                    else:
+                        print(f"-> Sucesso no fallback para OpenAI na página {page_num}!")
+                        full_markdown_content.append(f"\n\n# PÁGINA {page_num} (OpenAI Fallback)\n\n{markdown_content}")
+                        continue
+                except Exception as e_fallback:
+                    print(f"Erro no fallback da OpenAI para a página {page_num}: {e_fallback}")
+            
+            # Se não houver chave OpenAI ou se o fallback também falhar, adiciona o erro original
             full_markdown_content.append(f"\n\n# ERRO DE API NA PÁGINA {page_num}: {e}\n\n")
             
     # 4. Salvar o resultado concatenado

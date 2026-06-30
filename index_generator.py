@@ -9,7 +9,27 @@ from reportlab.lib import colors
 # Use GeminiClient diretamente para maior robustez na sumarização simples
 from rlm.utils.llm import GeminiClient
 
-def generate_index_for_folder(folder_path_str: str, api_key: str, recursive: bool = True) -> int:
+def count_md_files(folder_path: Path, recursive: bool = True) -> int:
+    count = 0
+    try:
+        if folder_path.is_dir():
+            if (folder_path / "_INDEX_CONTENT.pdf").exists():
+                pass
+            else:
+                for f in folder_path.iterdir():
+                    if f.is_file():
+                        if f.suffix.lower() == '.md' and not f.name.startswith("_") and not f.name.startswith("."):
+                            count += 1
+            
+            if recursive:
+                for f in folder_path.iterdir():
+                    if f.is_dir() and not f.name.startswith("."):
+                        count += count_md_files(f, recursive)
+    except Exception:
+        pass
+    return count
+
+def generate_index_for_folder(folder_path_str: str, api_key: str, recursive: bool = True, progress_callback=None, state=None) -> int:
     """
     Gera um índice semântico em PDF para a pasta especificada.
     Analisa arquivos .md, gera resumos e keywords usando RLM.
@@ -23,19 +43,30 @@ def generate_index_for_folder(folder_path_str: str, api_key: str, recursive: boo
 
     print(f"[INDEX] Iniciando indexacao de: {folder_path.name}")
 
+    if state is None:
+        total_count = count_md_files(folder_path, recursive)
+        state = {"current": 0, "total": total_count}
+
     # 1. Identificar arquivos Markdown de forma case-insensitive e robusta na raiz desta pasta
     # Ignora arquivos que começam com ponto ou underscore (como _INDEX, .git)
     md_files = []
     all_files = []
-    try:
-        if folder_path.is_dir():
-            all_files = [f for f in folder_path.iterdir() if f.is_file()]
-            for f in all_files:
-                if f.suffix.lower() == '.md' and not f.name.startswith("_") and not f.name.startswith("."):
-                    md_files.append(f)
-    except Exception as e_list:
-        print(f"[ERROR] Erro ao listar arquivos da pasta: {e_list}")
-        return 0
+    
+    pdf_filename = "_INDEX_CONTENT.pdf"
+    pdf_path = folder_path / pdf_filename
+    
+    if pdf_path.exists():
+        print(f"  [SKIP] Indice ja existe localmente em: {folder_path.name}")
+    else:
+        try:
+            if folder_path.is_dir():
+                all_files = [f for f in folder_path.iterdir() if f.is_file()]
+                for f in all_files:
+                    if f.suffix.lower() == '.md' and not f.name.startswith("_") and not f.name.startswith("."):
+                        md_files.append(f)
+        except Exception as e_list:
+            print(f"[ERROR] Erro ao listar arquivos da pasta: {e_list}")
+            return 0
 
     # Fornecer avisos no console se existirem outros tipos de arquivos, mas nenhum .md
     if not md_files and all_files:
@@ -54,6 +85,12 @@ def generate_index_for_folder(folder_path_str: str, api_key: str, recursive: boo
             
             for md_file in md_files:
                 print(f"  [READ] Analisando: {md_file.name}")
+                state["current"] += 1
+                if progress_callback:
+                    try:
+                        progress_callback(state["current"], state["total"], md_file.name)
+                    except Exception as e_cb:
+                        print(f"[WARN] Erro no progress_callback: {e_cb}")
                 try:
                     with open(md_file, 'r', encoding='utf-8-sig') as f:
                         content = f.read()
@@ -153,7 +190,7 @@ def generate_index_for_folder(folder_path_str: str, api_key: str, recursive: boo
             # Pega todas as subpastas diretias
             subfolders = [d for d in folder_path.iterdir() if d.is_dir() and not d.name.startswith(".")]
             for sub in subfolders:
-                indexed_count += generate_index_for_folder(str(sub), api_key, recursive=True)
+                indexed_count += generate_index_for_folder(str(sub), api_key, recursive=True, progress_callback=progress_callback, state=state)
         except Exception as e_sub:
             print(f"[ERROR] Erro ao processar subpastas: {e_sub}")
 

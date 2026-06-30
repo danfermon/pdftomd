@@ -104,44 +104,37 @@ O painel será aberto no seu navegador padrão (geralmente `http://localhost:850
 *   **Atenção:** Antes de executar a aplicação localmente utilizando Docker, certifique-se de que o **Docker Desktop** (ou o serviço do Docker) esteja **ativo** e rodando na sua máquina.
 
 ### 🌐 Acesso à VPS
-*   **Comando de Acesso (SSH):**
+*   **Acesso SSH:**
     ```bash
     ssh root@168.231.90.232
     ```
-*   **Pasta do Sistema na VPS:**
+*   **Diretório do Sistema na VPS:**
     ```bash
     cd /app/pdftomd
     ```
 
 ### 🔄 Fluxo de Deploy (Subir Alterações)
 
-Sempre que realizar atualizações no ambiente **LOCAL** e precisar refleti-las em **PRODUÇÃO** na VPS, siga estes passos:
+Sempre que realizar atualizações no ambiente **LOCAL** e precisar enviá-las para a **VPS**, siga estes passos simples:
 
-1.  **Identificar os arquivos modificados localmente:**
-    *   Identifique quais arquivos de código (ex: `app.py`, `pdf_detector.py`, `index_generator.py`, `Dockerfile`, `docker-compose.yml`, etc.) sofreram alteração.
-
-2.  **Enviar os arquivos modificados para a VPS via SCP:**
-    *   Transfira cada arquivo alterado individualmente para a pasta correspondente na VPS. Exemplo para o arquivo principal:
-        ```powershell
-        scp app.py root@168.231.90.232:/app/pdftomd/
-        ```
-    *   Caso tenha alterado arquivos dentro de subpastas (como no módulo `rlm`), especifique a subpasta de destino na VPS. Exemplo:
-        ```powershell
-        scp rlm/rlm_repl.py root@168.231.90.232:/app/pdftomd/rlm/
-        ```
-    > [!WARNING]
-    > **Atenção extrema ao `.env`:** O arquivo `.env` com as credenciais de produção já está configurado na VPS. **Nunca** envie o `.env` local via SCP para não sobrescrever e perder as credenciais do usuário em produção.
-
-3.  **Aplicar as alterações e reconstruir os Containers na VPS:**
-    Conecte-se à VPS, acesse a pasta do sistema e reconstrua os containers para aplicar o novo código:
+1.  **Gerar o pacote de deploy (Local):**
+    No terminal do seu computador local, execute:
     ```bash
-    # 1. Entrar na VPS
+    python create_deploy_zip.py
+    ```
+    Isso criará o pacote limpo `pdftomd_clean.zip`.
+
+2.  **Enviar o pacote compactado para a VPS via SCP (Local):**
+    ```bash
+    scp pdftomd_clean.zip root@168.231.90.232:/app/pdftomd/
+    ```
+
+3.  **Descompactar e Reconstruir (Na VPS):**
+    Conecte-se na VPS e execute os comandos para aplicar as alterações:
+    ```bash
     ssh root@168.231.90.232
-
-    # 2. Ir para a pasta do sistema
     cd /app/pdftomd
-
-    # 3. Reconstruir e subir os containers com as alterações
+    unzip -o pdftomd_clean.zip
     docker-compose up -d --build
     ```
 
