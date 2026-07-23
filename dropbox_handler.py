@@ -2,12 +2,20 @@ import os
 import dropbox
 from dropbox.exceptions import AuthError, ApiError
 from dropbox.files import WriteMode
+from dropbox.common import PathRoot
 from pathlib import Path
 import streamlit as st
 
 class DropboxHandler:
     def __init__(self, access_token):
         self.dbx = dropbox.Dropbox(access_token)
+        try:
+            account = self.dbx.users_get_current_account()
+            if hasattr(account, 'root_info') and account.root_info:
+                root_namespace_id = account.root_info.root_namespace_id
+                self.dbx = self.dbx.with_path_root(PathRoot.root(root_namespace_id))
+        except Exception:
+            pass
 
     def check_connection(self):
         """Verifica se a conexão e o token são validos."""
