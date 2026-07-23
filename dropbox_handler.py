@@ -77,7 +77,6 @@ class DropboxHandler:
                 process_entries(result.entries)
 
             return sorted(folders, key=lambda x: x.name)
-            return sorted(folders, key=lambda x: x.name)
         except AuthError:
             print("Erro de Autenticação ao listar pastas.")
             return []

@@ -2,7 +2,9 @@
 
 import streamlit as st
 import os
+import re
 import sys
+import posixpath
 from pathlib import Path
 try:
     import tkinter as tk
@@ -406,6 +408,126 @@ st.set_page_config(
     layout="wide"
 )
 
+# --- Sistema de Rastreamento e Limpeza de Arquivos Temporários por Sessão ---
+import time
+import json
+import shutil
+from streamlit.runtime.scriptrunner import get_script_run_ctx
+
+def get_session_id():
+    ctx = get_script_run_ctx()
+    return ctx.session_id if ctx else "default"
+
+def update_session_activity(processing=None):
+    try:
+        session_id = get_session_id()
+        meta_dir = Path("temp_dropbox") / "session_metadata"
+        meta_dir.mkdir(parents=True, exist_ok=True)
+        meta_file = meta_dir / f"{session_id}.json"
+        
+        data = {}
+        if meta_file.exists():
+            try:
+                with open(meta_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception:
+                pass
+        
+        data["last_activity"] = time.time()
+        
+        # Registra o usuário atual se estiver autenticado
+        if st.session_state.get('authenticated'):
+            data["username"] = st.session_state.get('username')
+            
+        if processing is not None:
+            data["processing"] = processing
+        elif "processing" not in data:
+            data["processing"] = False
+            
+        with open(meta_file, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+    except Exception as e:
+        print(f"Erro ao atualizar atividade da sessao: {e}")
+
+def cleanup_session_files(session_id):
+    try:
+        # Remove pastas temporárias da sessão
+        shutil.rmtree(Path("temp_uploads") / session_id, ignore_errors=True)
+        shutil.rmtree(Path("temp_dropbox") / session_id, ignore_errors=True)
+        
+        # Remove arquivo de metadados
+        meta_file = Path("temp_dropbox") / "session_metadata" / f"{session_id}.json"
+        if meta_file.exists():
+            meta_file.unlink(missing_ok=True)
+    except Exception as e:
+        print(f"Erro ao limpar arquivos da sessao {session_id}: {e}")
+
+def cleanup_user_past_sessions(username):
+    try:
+        meta_dir = Path("temp_dropbox") / "session_metadata"
+        if meta_dir.exists():
+            for meta_file in meta_dir.glob("*.json"):
+                session_id = meta_file.stem
+                try:
+                    with open(meta_file, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    if data.get("username") == username:
+                        cleanup_session_files(session_id)
+                except Exception:
+                    pass
+    except Exception as e:
+        print(f"Erro ao limpar sessoes anteriores do usuario {username}: {e}")
+
+def run_garbage_collector():
+    try:
+        now = time.time()
+        active_sessions = set()
+        
+        # 1. Limpa sessões baseadas em metadados inativas por mais de 10 minutos (600s)
+        meta_dir = Path("temp_dropbox") / "session_metadata"
+        if meta_dir.exists():
+            for meta_file in meta_dir.glob("*.json"):
+                session_id = meta_file.stem
+                try:
+                    with open(meta_file, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    last_activity = data.get("last_activity", 0)
+                    processing = data.get("processing", False)
+                    
+                    if not processing and (now - last_activity > 600):
+                        cleanup_session_files(session_id)
+                    else:
+                        active_sessions.add(session_id)
+                except Exception:
+                    # Remove por segurança se o arquivo de metadados estiver quebrado e antigo
+                    if now - meta_file.stat().st_mtime > 600:
+                        cleanup_session_files(session_id)
+                        
+        # 2. Varre diretórios órfãos nas pastas temp_uploads e temp_dropbox
+        for parent_dir_name in ["temp_uploads", "temp_dropbox"]:
+            parent_dir = Path(parent_dir_name)
+            if parent_dir.exists():
+                for sub in parent_dir.iterdir():
+                    if sub.is_dir() and sub.name not in ("session_metadata", ".metadata"):
+                        if sub.name in active_sessions:
+                            continue
+                        
+                        # Calcula a última modificação da pasta/arquivos internos
+                        newest_time = sub.stat().st_mtime
+                        try:
+                            for p in sub.rglob("*"):
+                                newest_time = max(newest_time, p.stat().st_mtime)
+                        except Exception:
+                            pass
+                            
+                        if now - newest_time > 600:
+                            shutil.rmtree(sub, ignore_errors=True)
+    except Exception as e:
+        print(f"Erro no coletor de lixo: {e}")
+
+# Executa o Garbage Collector e atualiza a atividade da sessão atual
+run_garbage_collector()
+update_session_activity()
 
 # Inicializa o banco de dados SQLite de usuários
 auth.init_db()
@@ -485,6 +607,8 @@ def show_login_screen():
                 st.session_state['username'] = user['username']
                 st.session_state['is_admin'] = user['is_admin']
                 st.session_state['needs_password_change'] = user['needs_password_change']
+                # Limpa arquivos de sessões antigas deste mesmo usuário
+                cleanup_user_past_sessions(user['username'])
                 st.success(t("login_success"))
                 st.rerun()
             else:
@@ -986,39 +1110,6 @@ def process_local_file(local_path_str, gemini_key):
     success = run_file_pipeline(str(path), str(output_path), gemini_key)
     return output_path if success else None
 
-def process_uploaded_file(uploaded_file, gemini_key):
-    """
-    Salva o arquivo enviado via web temporariamente, processa-o e gera o Markdown de saída na pasta markdown_output.
-    Retorna o caminho do arquivo Markdown gerado.
-    """
-    # 1. Cria pasta temporária de uploads
-    temp_dir = Path("temp_uploads")
-    temp_dir.mkdir(exist_ok=True)
-    
-    # Salva o arquivo temporariamente com seu nome original
-    temp_file_path = temp_dir / uploaded_file.name
-    with open(temp_file_path, "wb") as f:
-        f.write(uploaded_file.getbuffer())
-        
-    # 2. Cria pasta de saída de markdown se não existir
-    output_dir = Path("markdown_output")
-    output_dir.mkdir(exist_ok=True)
-    
-    output_md_path = output_dir / f"{temp_file_path.prefix if hasattr(temp_file_path, 'prefix') else temp_file_path.stem}MD.md"
-    
-    st.info(t("saving_upload_mode", output_md_path))
-    
-    # 3. Executa o pipeline
-    success = run_file_pipeline(str(temp_file_path), str(output_md_path), gemini_key)
-    
-    # 4. Remove o arquivo temporário original para manter o sistema limpo
-    try:
-        if temp_file_path.exists():
-            os.remove(temp_file_path)
-    except Exception as e:
-        print(f"Erro ao remover arquivo temporário {temp_file_path}: {e}")
-        
-    return output_md_path if success else None
 
 def process_batch_directory(directory_path_str: str, gemini_key: str, overwrite: bool = False):
     """
@@ -1118,84 +1209,91 @@ def process_dropbox_batch(folder_path_str: str, gemini_key: str, overwrite: bool
         
     st.toast(msg, icon="☁️")
     
-    # 2. Varredura
-    supported_extensions = {'.pdf', '.docx', '.pptx', '.xlsx', '.doc', '.xls', '.csv', '.json', '.xml', '.html', '.zip', '.mp3', '.wav', '.jpg', '.png', '.epub'}
-    
-    with st.spinner(t("dbx_scanning_files")):
-        file_entries = dbx.list_files_recursive(folder_path_str, supported_extensions)
+    update_session_activity(processing=True)
+    try:
+        # 2. Varredura
+        supported_extensions = {'.pdf', '.docx', '.pptx', '.xlsx', '.doc', '.xls', '.csv', '.json', '.xml', '.html', '.zip', '.mp3', '.wav', '.jpg', '.png', '.epub'}
         
-    if not file_entries:
-        st.warning(t("dbx_no_supported_files").format(folder_path_str))
-        return
-        
-    st.success(t("dbx_found_files").format(len(file_entries)))
-    
-    # 3. Processamento
-    progress_bar = st.progress(0)
-    log_area = st.empty()
-    stop_button = st.button(t("stop_dbx_btn"))
-    
-    temp_dir = Path("temp_dropbox")
-    temp_dir.mkdir(exist_ok=True)
-    
-    processed_count = 0
-    skipped_count = 0 # NOVO
-    errors_count = 0
-    
-    for i, entry in enumerate(file_entries):
-        if stop_button:
-            st.warning(t("dbx_stopping"))
-            break
+        with st.spinner(t("dbx_scanning_files")):
+            file_entries = dbx.list_files_recursive(folder_path_str, supported_extensions)
             
-        local_output_name = f"{Path(entry.name).stem}MD.md"
-        # Dropbox Output Path
-        dropbox_output_path = f"{Path(entry.path_display).parent.as_posix()}/{local_output_name}"
-        if dropbox_output_path.startswith("//"):
-             dropbox_output_path = dropbox_output_path[1:]
-
-        # LÓGICA INCREMENTAL (DROPBOX)
-        if not overwrite:
-            # Verifica se existe chamando metadados
-            if dbx.file_exists(dropbox_output_path):
-                 log_area.code(t("dbx_skipping_existing", entry.path_display))
-                 skipped_count += 1
-                 progress_bar.progress((i + 1) / len(file_entries))
-                 continue
-
-        log_area.code(t("dbx_download_processing", i+1, len(file_entries), entry.path_display))
+        if not file_entries:
+            st.warning(t("dbx_no_supported_files").format(folder_path_str))
+            return
+            
+        st.success(t("dbx_found_files").format(len(file_entries)))
         
-        # Paths do download temporário
-        local_input = temp_dir / entry.name
-        local_output = temp_dir / local_output_name
+        # 3. Processamento
+        progress_bar = st.progress(0)
+        log_area = st.empty()
+        stop_button = st.button(t("stop_dbx_btn"))
         
-        try:
-            # Download
-            if dbx.download_file(entry.path_display, str(local_input)):
-                # Converte
-                if run_file_pipeline(str(local_input), str(local_output), gemini_key):
-                    # Upload
-                    log_area.code(t("dbx_uploading") + f": {dropbox_output_path}")
-                    if dbx.upload_file(str(local_output), dropbox_output_path):
-                         processed_count += 1
+        temp_dir = Path("temp_dropbox") / get_session_id()
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        
+        processed_count = 0
+        skipped_count = 0 # NOVO
+        errors_count = 0
+        
+        for i, entry in enumerate(file_entries):
+            if stop_button:
+                st.warning(t("dbx_stopping"))
+                break
+                
+            local_output_name = f"{Path(entry.name).stem}MD.md"
+            # Dropbox Output Path
+            dropbox_output_path = f"{Path(entry.path_display).parent.as_posix()}/{local_output_name}"
+            if dropbox_output_path.startswith("//"):
+                 dropbox_output_path = dropbox_output_path[1:]
+
+            # LÓGICA INCREMENTAL (DROPBOX)
+            if not overwrite:
+                # Verifica se existe chamando metadados
+                if dbx.file_exists(dropbox_output_path):
+                     log_area.code(t("dbx_skipping_existing", entry.path_display))
+                     skipped_count += 1
+                     progress_bar.progress((i + 1) / len(file_entries))
+                     continue
+
+            log_area.code(t("dbx_download_processing", i+1, len(file_entries), entry.path_display))
+            
+            # Paths do download temporário
+            local_input = temp_dir / entry.name
+            local_output = temp_dir / local_output_name
+            
+            try:
+                # Download
+                if dbx.download_file(entry.path_display, str(local_input)):
+                    # Converte
+                    if run_file_pipeline(str(local_input), str(local_output), gemini_key):
+                        # Upload
+                        log_area.code(t("dbx_uploading") + f": {dropbox_output_path}")
+                        if dbx.upload_file(str(local_output), dropbox_output_path):
+                             processed_count += 1
+                        else:
+                             errors_count += 1
+                             st.error(t("dbx_upload_error").format(entry.name))
                     else:
-                         errors_count += 1
-                         st.error(t("dbx_upload_error").format(entry.name))
+                        errors_count += 1
                 else:
-                    errors_count += 1
-            else:
-                 errors_count += 1
-        except Exception as e:
-            st.error(f"Erro DBX: {e}")
-            errors_count += 1
-        finally:
-            # Limpeza Temp
-            if local_input.exists(): os.remove(local_input)
-            if local_output.exists(): os.remove(local_output)
+                     errors_count += 1
+            except Exception as e:
+                st.error(f"Erro DBX: {e}")
+                errors_count += 1
+            finally:
+                # Limpeza Temp
+                if local_input.exists(): os.remove(local_input)
+                if local_output.exists(): os.remove(local_output)
 
-        progress_bar.progress((i + 1) / len(file_entries))
-        
-    st.success(t("dbx_batch_completed_msg", processed_count, skipped_count, errors_count))
-    st.balloons()
+            progress_bar.progress((i + 1) / len(file_entries))
+            
+        st.session_state['dropbox_alert'] = {
+            "type": "success",
+            "text": t("dbx_batch_completed_msg", processed_count, skipped_count, errors_count)
+        }
+        st.balloons()
+    finally:
+        update_session_activity(processing=False)
 
 
 def process_uploaded_file(uploaded_file, gemini_key): # RENOMEADO
@@ -1203,29 +1301,34 @@ def process_uploaded_file(uploaded_file, gemini_key): # RENOMEADO
     Salva o arquivo temporariamente e executa o pipeline principal.
     Retorna o caminho do arquivo Markdown gerado.
     """
-    # 1. Salvar arquivo temporariamente
-    temp_dir = Path("temp_uploads")
-    temp_dir.mkdir(exist_ok=True)
-    pdf_path = temp_dir / uploaded_file.name
-    
-    with open(pdf_path, "wb") as f:
-        f.write(uploaded_file.getbuffer())
-    
-    # 2. Definir Caminho de Saída (Browser Limit: pasta markdown_output)
-    output_dir = Path("markdown_output")
-    output_dir.mkdir(exist_ok=True)
-    
-    # NAMING CHANGE: NomeOriginalMD.md
-    output_md_path = output_dir / f"{pdf_path.stem}MD.md"
-    
-    st.info(t("saving_upload_mode_simple", output_md_path))
-    
-    # 3. Executar Pipeline
-    success = run_file_pipeline(str(pdf_path), str(output_md_path), gemini_key)
-    
-    # 4. Limpeza e Retorno
-    os.remove(pdf_path)
-    return output_md_path if success else None
+    update_session_activity(processing=True)
+    try:
+        # 1. Salvar arquivo temporariamente em subpasta da sessão
+        temp_dir = Path("temp_uploads") / get_session_id()
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        pdf_path = temp_dir / uploaded_file.name
+        
+        with open(pdf_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+        
+        # 2. Definir Caminho de Saída (Browser Limit: pasta markdown_output)
+        output_dir = Path("markdown_output")
+        output_dir.mkdir(exist_ok=True)
+        
+        # NAMING CHANGE: NomeOriginalMD.md
+        output_md_path = output_dir / f"{pdf_path.stem}MD.md"
+        
+        st.info(t("saving_upload_mode_simple", output_md_path))
+        
+        # 3. Executar Pipeline
+        success = run_file_pipeline(str(pdf_path), str(output_md_path), gemini_key)
+        
+        # 4. Limpeza e Retorno
+        if pdf_path.exists():
+            os.remove(pdf_path)
+        return output_md_path if success else None
+    finally:
+        update_session_activity(processing=False)
 
 # --- Layout da Aplicação ---
 
@@ -1272,6 +1375,8 @@ with st.sidebar:
         st.rerun()
 
     if st.button(t("logout_btn"), use_container_width=True):
+        # Limpa arquivos temporários desta sessão imediatamente ao fazer logout
+        cleanup_session_files(get_session_id())
         st.session_state['authenticated'] = False
         st.session_state['username'] = ""
         st.session_state['is_admin'] = False
@@ -1532,6 +1637,21 @@ print(path)
 with tab_dropbox:
     st.info(t("dropbox_info"))
     
+    # --- AVISO PERSISTENTE DE SUCESSO/ALERTA ---
+    if 'dropbox_alert' in st.session_state:
+        alert = st.session_state['dropbox_alert']
+        if alert["type"] == "success":
+            st.success(alert["text"])
+        elif alert["type"] == "warning":
+            st.warning(alert["text"])
+        elif alert["type"] == "error":
+            st.error(alert["text"])
+            
+        if st.button("OK", key="dbx_clear_alert_btn", use_container_width=True):
+            del st.session_state['dropbox_alert']
+            st.rerun()
+        st.divider()
+        
     # Init State
     if 'dbx_current_path' not in st.session_state:
         st.session_state['dbx_current_path'] = "" # Root
@@ -1548,7 +1668,7 @@ with tab_dropbox:
         display_path = current if current else t("dropbox_raiz")
         
         # --- NOVO LAYOUT DA PASTA SELECIONADA (CARD AZUL) ---
-        folder_name = Path(current).name if current else "Raiz"
+        folder_name = posixpath.basename(current.rstrip("/")) if current and current != "/" else "Raiz"
         folder_path = current if current else "/"
         
         st.markdown(f"""
@@ -1566,11 +1686,12 @@ with tab_dropbox:
         
         with col_up_btn:
             st.markdown('<div class="up-btn-marker"></div>', unsafe_allow_html=True)
-            is_at_root = (current == "")
+            is_at_root = (current in ("", "/"))
             if st.button("⬆️\nSubir Nível", key="dbx_up_btn", use_container_width=True, disabled=is_at_root):
-                st.session_state['dbx_current_path'] = str(Path(current).parent).replace("\\", "/")
-                if st.session_state['dbx_current_path'] == ".": 
-                    st.session_state['dbx_current_path'] = ""
+                parent = posixpath.dirname(current)
+                if parent in ("/", "", "."):
+                    parent = ""
+                st.session_state['dbx_current_path'] = parent
                 st.rerun()
                 
         with col_sel_btn:
@@ -1689,68 +1810,86 @@ with tab_dropbox:
                     progress_bar_dl = st.progress(0)
                     log_area_dl = st.empty()
                     
-                    index_temp_dir = Path("temp_dropbox_index")
-                    index_temp_dir.mkdir(exist_ok=True)
-                    
-                    downloaded_count = 0
-                    for i, entry in enumerate(filtered_md_entries):
-                        log_area_dl.text(f"Baixando arquivo para análise: {entry.name} ({i+1}/{len(filtered_md_entries)})")
-                        if dest_path:
-                             # Remoção de prefixo insensível a maiúsculas/minúsculas
-                             path_lower = entry.path_display.lower()
-                             dest_lower = dest_path.lower()
-                             if path_lower.startswith(dest_lower):
-                                 rel_path = entry.path_display[len(dest_lower):].lstrip("/")
-                             else:
-                                 rel_path = entry.path_display.replace(dest_path, "", 1).lstrip("/")
-                        else:
-                             rel_path = entry.path_display.lstrip("/")
-                             
-                        local_dest = index_temp_dir / rel_path
-                        local_dest.parent.mkdir(parents=True, exist_ok=True)
-                        
-                        dbx.download_file(entry.path_display, str(local_dest))
-                        downloaded_count += 1
-                        progress_bar_dl.progress(downloaded_count / len(filtered_md_entries))
-                    
-                    progress_bar_dl.empty()
-                    log_area_dl.empty()
-                    
-                    # --- PROGRESSO PARA INDEXAÇÃO ---
-                    progress_bar_idx = st.progress(0)
-                    log_area_idx = st.empty()
-                    
-                    def rlm_progress_callback(curr, tot, name):
-                        progress_bar_idx.progress(curr / tot)
-                        log_area_idx.text(f"Indexando arquivo {curr} de {tot}: {name}")
-                    
-                    indexed_count = generate_index_for_folder(str(index_temp_dir), st.session_state['api_key'], recursive=True, progress_callback=rlm_progress_callback)
-                    
-                    progress_bar_idx.empty()
-                    log_area_idx.empty()
-                    
-                    if indexed_count == 0:
-                        st.warning(t("dbx_index_no_md_warning"))
-                    else:
-                        pdf_files = list(index_temp_dir.rglob("_INDEX_CONTENT*.pdf"))
-                        if not pdf_files:
-                            st.error(t("dbx_no_index_generated"))
-                        else:
-                            uploaded_indexes = 0
-                            for pdf in pdf_files:
-                                rel_pdf_path = pdf.relative_to(index_temp_dir)
-                                base = dest_path if dest_path != "" else ""
-                                remote_pdf_path = f"{base}/{rel_pdf_path.as_posix()}"
-                                if remote_pdf_path.startswith("//"): remote_pdf_path = remote_pdf_path[1:]
-                                
-                                st.toast(t("dbx_sending_toast") + f": {rel_pdf_path.name}")
-                                dbx.upload_file(str(pdf), remote_pdf_path)
-                                uploaded_indexes += 1
-                            
-                            st.success(t("dbx_index_success").format(uploaded_indexes))
-                    
+                    import tempfile
                     import shutil
-                    shutil.rmtree(index_temp_dir, ignore_errors=True)
+                    
+                    # Cria uma pasta temporária única da sessão para evitar concorrência e resíduos
+                    session_dbx_dir = Path("temp_dropbox") / get_session_id()
+                    session_dbx_dir.mkdir(parents=True, exist_ok=True)
+                    index_temp_dir_str = tempfile.mkdtemp(dir=str(session_dbx_dir), prefix="index_")
+                    index_temp_dir = Path(index_temp_dir_str)
+                    
+                    update_session_activity(processing=True)
+                    try:
+                        downloaded_count = 0
+                        for i, entry in enumerate(filtered_md_entries):
+                            log_area_dl.text(f"Baixando arquivo para análise: {entry.name} ({i+1}/{len(filtered_md_entries)})")
+                            if dest_path:
+                                 # Remoção de prefixo insensível a maiúsculas/minúsculas
+                                 path_lower = entry.path_display.lower()
+                                 dest_lower = dest_path.lower()
+                                 if path_lower.startswith(dest_lower):
+                                     rel_path = entry.path_display[len(dest_lower):].lstrip("/")
+                                 else:
+                                     rel_path = entry.path_display.replace(dest_path, "", 1).lstrip("/")
+                            else:
+                                 rel_path = entry.path_display.lstrip("/")
+                                 
+                            local_dest = index_temp_dir / rel_path
+                            local_dest.parent.mkdir(parents=True, exist_ok=True)
+                            
+                            dbx.download_file(entry.path_display, str(local_dest))
+                            downloaded_count += 1
+                            progress_bar_dl.progress(downloaded_count / len(filtered_md_entries))
+                        
+                        progress_bar_dl.empty()
+                        log_area_dl.empty()
+                        
+                        # --- PROGRESSO PARA INDEXAÇÃO ---
+                        progress_bar_idx = st.progress(0)
+                        log_area_idx = st.empty()
+                        
+                        def rlm_progress_callback(curr, tot, name):
+                            progress_bar_idx.progress(curr / tot)
+                            log_area_idx.text(f"Indexando arquivo {curr} de {tot}: {name}")
+                        
+                        indexed_count = generate_index_for_folder(str(index_temp_dir), st.session_state['api_key'], recursive=True, progress_callback=rlm_progress_callback)
+                        
+                        progress_bar_idx.empty()
+                        log_area_idx.empty()
+                        
+                        if indexed_count == 0:
+                            st.session_state['dropbox_alert'] = {
+                                "type": "warning",
+                                "text": t("dbx_index_no_md_warning")
+                            }
+                        else:
+                            pdf_files = list(index_temp_dir.rglob("_INDEX_CONTENT*.pdf"))
+                            if not pdf_files:
+                                st.session_state['dropbox_alert'] = {
+                                    "type": "error",
+                                    "text": t("dbx_no_index_generated")
+                                }
+                            else:
+                                uploaded_indexes = 0
+                                for pdf in pdf_files:
+                                    rel_pdf_path = pdf.relative_to(index_temp_dir)
+                                    base = dest_path if dest_path != "" else ""
+                                    remote_pdf_path = f"{base}/{rel_pdf_path.as_posix()}"
+                                    if remote_pdf_path.startswith("//"): remote_pdf_path = remote_pdf_path[1:]
+                                    
+                                    st.toast(t("dbx_sending_toast") + f": {rel_pdf_path.name}")
+                                    dbx.upload_file(str(pdf), remote_pdf_path)
+                                    uploaded_indexes += 1
+                                
+                                st.session_state['dropbox_alert'] = {
+                                    "type": "success",
+                                    "text": t("dbx_index_success").format(uploaded_indexes)
+                                }
+                    finally:
+                        shutil.rmtree(index_temp_dir, ignore_errors=True)
+                        update_session_activity(processing=False)
+                    
                     st.rerun()
 
 
@@ -1813,7 +1952,8 @@ if has_input:
                  output_dir = Path("markdown_output")
                  output_dir.mkdir(exist_ok=True)
                  # Cria um nome de arquivo seguro a partir da URL (simplificado)
-                 video_id = youtube_url.split("v=")[-1].split("&")[0]
+                 video_id_match = re.search(r'(?:v=|\/)([0-9A-Za-z_-]{11})', youtube_url)
+                 video_id = video_id_match.group(1) if video_id_match else "video"
                  output_md_path = output_dir / f"youtube_{video_id}.md"
                  
                  with st.spinner(t("extracting_youtube")):

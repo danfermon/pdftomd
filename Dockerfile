@@ -11,7 +11,9 @@ ENV USERS_DB_PATH=/data/users.db
 WORKDIR /app
 
 # Instala dependências de sistema necessárias (Tesseract OCR com suporte a Português e Poppler)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr \
     tesseract-ocr-por \
     poppler-utils \
@@ -21,7 +23,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copia os arquivos de requisitos e instala as dependências do Python
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements.txt
 
 # Copia o restante do código da aplicação
 COPY . .
