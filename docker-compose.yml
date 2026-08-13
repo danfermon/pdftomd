@@ -7,6 +7,13 @@ services:
     container_name: pdftomd_app
     ports:
       - "8501:8501"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          memory: 512M
     environment:
       # Caminho do banco persistente no container
       - USERS_DB_PATH=/data/users.db

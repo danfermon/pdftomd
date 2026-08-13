@@ -8,19 +8,23 @@ import streamlit as st
 
 class DropboxHandler:
     def __init__(self, access_token):
-        self.dbx = dropbox.Dropbox(access_token)
+        self.base_dbx = dropbox.Dropbox(access_token)
+        self.dbx = self.base_dbx
         try:
-            account = self.dbx.users_get_current_account()
+            account = self.base_dbx.users_get_current_account()
             if hasattr(account, 'root_info') and account.root_info:
                 root_namespace_id = account.root_info.root_namespace_id
-                self.dbx = self.dbx.with_path_root(PathRoot.root(root_namespace_id))
+                candidate_dbx = self.base_dbx.with_path_root(PathRoot.root(root_namespace_id))
+                # Testa se o path_root é aceito pela API (Sandbox/App Folder apps rejeitam)
+                candidate_dbx.files_list_folder("", limit=1)
+                self.dbx = candidate_dbx
         except Exception:
-            pass
+            self.dbx = self.base_dbx
 
     def check_connection(self):
         """Verifica se a conexão e o token são validos."""
         try:
-            account = self.dbx.users_get_current_account()
+            account = self.base_dbx.users_get_current_account()
             lang = st.session_state.get('lang', 'pt')
             connected_msg = f"Connected as: {account.name.display_name}" if lang == 'en' else f"Conectado como: {account.name.display_name}"
             return True, connected_msg
@@ -91,6 +95,32 @@ class DropboxHandler:
         except ApiError as e:
             # Tratamento silencioso ou log
             print(f"Erro ao listar pastas: {e}")
+            return []
+
+    def list_direct_files(self, folder_path, supported_extensions=None):
+        """Lista arquivos diretos (não recursivo) de uma pasta."""
+        files = []
+        try:
+            path = folder_path if folder_path != "/" else ""
+            result = self.dbx.files_list_folder(path)
+            
+            def process_entries(entries):
+                for entry in entries:
+                    if isinstance(entry, dropbox.files.FileMetadata):
+                        if supported_extensions:
+                            ext = os.path.splitext(entry.name)[1].lower()
+                            if ext not in supported_extensions:
+                                continue
+                        files.append(entry)
+
+            process_entries(result.entries)
+            while result.has_more:
+                result = self.dbx.files_list_folder_continue(result.cursor)
+                process_entries(result.entries)
+
+            return sorted(files, key=lambda x: x.name)
+        except Exception as e:
+            print(f"Erro ao listar arquivos diretos: {e}")
             return []
 
     def file_exists(self, dropbox_path):

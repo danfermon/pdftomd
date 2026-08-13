@@ -1655,8 +1655,8 @@ with tab_dropbox:
     # Init State
     if 'dbx_current_path' not in st.session_state:
         st.session_state['dbx_current_path'] = "" # Root
-    if 'dbx_selected_for_processing' not in st.session_state:
-        st.session_state['dbx_selected_for_processing'] = None 
+    if 'dbx_selected_for_processing' not in st.session_state or st.session_state['dbx_selected_for_processing'] is None:
+        st.session_state['dbx_selected_for_processing'] = st.session_state.get('dbx_current_path', "")
 
     # Apenas renderizar o fluxo se as credenciais forem válidas
     if not (token_valid and gemini_valid):
@@ -1692,6 +1692,7 @@ with tab_dropbox:
                 if parent in ("/", "", "."):
                     parent = ""
                 st.session_state['dbx_current_path'] = parent
+                st.session_state['dbx_selected_for_processing'] = parent
                 st.rerun()
                 
         with col_sel_btn:
@@ -1709,8 +1710,10 @@ with tab_dropbox:
         
         st.divider()
         
-        # --- LISTAGEM DE SUBPASTAS COM RECUO E LINHA VERTICAL (BOTÕES AMARELOS) ---
+        # --- LISTAGEM DE SUBPASTAS E ARQUIVOS DIRETO ---
+        supported_exts = {'.pdf', '.docx', '.pptx', '.xlsx', '.doc', '.xls', '.csv', '.json', '.xml', '.html', '.zip', '.mp3', '.wav', '.jpg', '.png', '.epub'}
         subfolders = dbx.list_subfolders(current)
+        direct_files = dbx.list_direct_files(current, supported_exts)
         
         col_indent, col_subfolders = st.columns([1, 19])
         with col_subfolders:
@@ -1723,7 +1726,21 @@ with tab_dropbox:
                     st.markdown('<div class="yellow-btn-marker"></div>', unsafe_allow_html=True)
                     if st.button(f"📁 {folder.name}", key=f"btn_folder_{folder.id}", use_container_width=True):
                         st.session_state['dbx_current_path'] = folder.path_display
+                        st.session_state['dbx_selected_for_processing'] = folder.path_display
                         st.rerun()
+            
+            # --- LISTAGEM DE ARQUIVOS NA PASTA ATUAL ---
+            if direct_files:
+                st.markdown(f"**📄 Arquivos prontos para conversão nesta pasta ({len(direct_files)}):**")
+                for f in direct_files:
+                    st.text(f"  • 📄 {f.name}")
+            elif not subfolders:
+                st.info(
+                    "💡 **Não está vendo seus arquivos do Dropbox?**\n\n"
+                    "• Se o seu App no Dropbox for do tipo **App Folder** (ex: `carroll_rag`), certifique-se de colocar seus arquivos/pastas no seguinte caminho do Dropbox:\n"
+                    "  `Dropbox` ➔ `Aplicativos` (ou `Apps`) ➔ `carroll_rag`\n\n"
+                    "• Se os arquivos estiverem na raiz geral do seu Dropbox, crie um novo token com acesso **Full Dropbox** nas configurações do App."
+                )
                         
         st.markdown("---")
         
