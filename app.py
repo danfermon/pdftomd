@@ -2,6 +2,7 @@
 
 import streamlit as st
 import os
+import gc
 import re
 import sys
 import posixpath
@@ -1211,11 +1212,11 @@ def process_dropbox_batch(folder_path_str: str, gemini_key: str, overwrite: bool
     
     update_session_activity(processing=True)
     try:
-        # 2. Varredura
+        # 2. Varredura Unificada
         supported_extensions = {'.pdf', '.docx', '.pptx', '.xlsx', '.doc', '.xls', '.csv', '.json', '.xml', '.html', '.zip', '.mp3', '.wav', '.jpg', '.png', '.epub'}
         
         with st.spinner(t("dbx_scanning_files")):
-            file_entries = dbx.list_files_recursive(folder_path_str, supported_extensions)
+            file_entries, existing_md_set, _ = dbx.scan_folder_tree(folder_path_str, supported_extensions)
             
         if not file_entries:
             st.warning(t("dbx_no_supported_files").format(folder_path_str))
@@ -1232,7 +1233,7 @@ def process_dropbox_batch(folder_path_str: str, gemini_key: str, overwrite: bool
         temp_dir.mkdir(parents=True, exist_ok=True)
         
         processed_count = 0
-        skipped_count = 0 # NOVO
+        skipped_count = 0
         errors_count = 0
         
         for i, entry in enumerate(file_entries):
@@ -1246,10 +1247,9 @@ def process_dropbox_batch(folder_path_str: str, gemini_key: str, overwrite: bool
             if dropbox_output_path.startswith("//"):
                  dropbox_output_path = dropbox_output_path[1:]
 
-            # LÓGICA INCREMENTAL (DROPBOX)
+            # LÓGICA INCREMENTAL (DROPBOX O(1) EM MEMÓRIA - ZERO CHAMADAS DE REDE)
             if not overwrite:
-                # Verifica se existe chamando metadados
-                if dbx.file_exists(dropbox_output_path):
+                if dropbox_output_path.lower() in existing_md_set:
                      log_area.code(t("dbx_skipping_existing", entry.path_display))
                      skipped_count += 1
                      progress_bar.progress((i + 1) / len(file_entries))
@@ -1266,24 +1266,34 @@ def process_dropbox_batch(folder_path_str: str, gemini_key: str, overwrite: bool
                 if dbx.download_file(entry.path_display, str(local_input)):
                     # Converte
                     if run_file_pipeline(str(local_input), str(local_output), gemini_key):
-                        # Upload
-                        log_area.code(t("dbx_uploading") + f": {dropbox_output_path}")
-                        if dbx.upload_file(str(local_output), dropbox_output_path):
-                             processed_count += 1
+                        # Upload apenas se o arquivo de saída realmente existe
+                        if local_output.exists():
+                            log_area.code(t("dbx_uploading") + f": {dropbox_output_path}")
+                            if dbx.upload_file(str(local_output), dropbox_output_path):
+                                 processed_count += 1
+                                 existing_md_set.add(dropbox_output_path.lower())
+                            else:
+                                 errors_count += 1
+                                 st.error(t("dbx_upload_error").format(entry.name))
                         else:
-                             errors_count += 1
-                             st.error(t("dbx_upload_error").format(entry.name))
+                            errors_count += 1
+                            print(f"[WARN] Conversão finalizada sem gerar o arquivo de saída local {local_output}")
                     else:
                         errors_count += 1
                 else:
                      errors_count += 1
             except Exception as e:
-                st.error(f"Erro DBX: {e}")
+                st.error(f"Erro DBX no arquivo {entry.name}: {e}")
                 errors_count += 1
             finally:
-                # Limpeza Temp
-                if local_input.exists(): os.remove(local_input)
-                if local_output.exists(): os.remove(local_output)
+                # Limpeza Temp e Liberação de Memória RAM
+                if local_input.exists():
+                    try: os.remove(local_input)
+                    except: pass
+                if local_output.exists():
+                    try: os.remove(local_output)
+                    except: pass
+                gc.collect()
 
             progress_bar.progress((i + 1) / len(file_entries))
             
@@ -1774,19 +1784,44 @@ with tab_dropbox:
 
         st.markdown("---")
         
-        # 3. SEÇÃO DE ÍNDICE SEMÂNTICO (Abaixo da conversão, condicionado à varredura recursiva)
+        # 3. SEÇÃO DE ÍNDICE SEMÂNTICO (Abaixo da conversão, com cache na sessão)
         supported_extensions = {'.pdf', '.docx', '.pptx', '.xlsx', '.doc', '.xls', '.csv', '.json', '.xml', '.html', '.zip', '.mp3', '.wav', '.jpg', '.png', '.epub'}
         
+        if 'dbx_scan_cache' not in st.session_state:
+            st.session_state['dbx_scan_cache'] = {}
+
+        all_supported_entries = []
+        md_entries = []
+        existing_indices_set = set()
+        
         if is_action_enabled:
-            with st.spinner(t("dbx_scanning_files")):
-                all_supported_entries = dbx.list_files_recursive(selected_dbx, supported_extensions)
-                md_entries = dbx.list_files_recursive(selected_dbx, {'.md'})
-            # Filtrar md_entries para ignorar arquivos de índice ou ocultos
-            md_entries = [e for e in md_entries if not e.name.startswith("_") and not e.name.startswith(".")]
-        else:
-            all_supported_entries = []
-            md_entries = []
+            # Obtém varredura do cache ou executa sob demanda
+            cache_key = selected_dbx.lower() if selected_dbx else "/"
+            col_scan_info, col_scan_btn = st.columns([3, 1])
             
+            with col_scan_btn:
+                if st.button("🔄 Escanear Pasta", key="btn_rescan_dbx", use_container_width=True):
+                    if cache_key in st.session_state['dbx_scan_cache']:
+                        del st.session_state['dbx_scan_cache'][cache_key]
+            
+            if cache_key not in st.session_state['dbx_scan_cache']:
+                with st.spinner(t("dbx_scanning_files")):
+                    files_found, existing_md_set, existing_indices_set = dbx.scan_folder_tree(selected_dbx, supported_extensions)
+                    st.session_state['dbx_scan_cache'][cache_key] = {
+                        'all_supported': files_found,
+                        'existing_md_set': existing_md_set,
+                        'existing_indices_set': existing_indices_set
+                    }
+
+            cached_data = st.session_state['dbx_scan_cache'][cache_key]
+            all_supported_entries = cached_data['all_supported']
+            existing_indices_set = cached_data['existing_indices_set']
+            
+            # Obtém entries de arquivos .md a partir da varredura unificada
+            md_entries = [e for e in all_supported_entries if e.name.lower().endswith('.md') and not e.name.startswith("_") and not e.name.startswith(".")]
+            with col_scan_info:
+                st.caption(f"📊 Metadados em Cache: {len(all_supported_entries)} arquivos suportados identificados.")
+        
         st.subheader(t("semantic_index_title"))
         
         if not is_action_enabled:
@@ -1806,7 +1841,7 @@ with tab_dropbox:
             if st.button(t("generate_index_dbx_btn"), key="btn_index_dbx_main", use_container_width=True):
                 dest_path = selected_dbx
                 
-                # --- FILTRAR PASTAS QUE JÁ POSSUEM ÍNDICE NO DROPBOX ---
+                # --- FILTRAR PASTAS QUE JÁ POSSUEM ÍNDICE NO DROPBOX (O(1) EM MEMÓRIA) ---
                 checked_dirs = {}
                 filtered_md_entries = []
                 for entry in md_entries:
@@ -1815,7 +1850,7 @@ with tab_dropbox:
                         remote_index_path = f"{remote_dir}/_INDEX_CONTENT.pdf"
                         if remote_index_path.startswith("//"):
                             remote_index_path = remote_index_path[1:]
-                        checked_dirs[remote_dir] = dbx.file_exists(remote_index_path)
+                        checked_dirs[remote_dir] = (remote_index_path.lower() in existing_indices_set)
                     
                     if not checked_dirs[remote_dir]:
                         filtered_md_entries.append(entry)
