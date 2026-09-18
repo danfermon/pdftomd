@@ -140,5 +140,35 @@ class TestPerformanceAndResilience(unittest.TestCase):
 
         print("[OK] Teste 04 (.doc Legado Tratamento Gracioso): Aprovado")
 
+    def test_05_zip_judicial_process_speed(self):
+        """Testa se um arquivo .zip contendo múltiplos PDFs de processo é convertido em segundos."""
+        zip_path = self.temp_path / "processo_completo.zip"
+        output_md = self.temp_path / "processo_completoMD.md"
+
+        # Criar ZIP com 3 PDFs de processo e 1 DOCX
+        import zipfile
+        with zipfile.ZipFile(zip_path, 'w') as z:
+            for i in range(1, 4):
+                doc = fitz.open()
+                page = doc.new_page()
+                page.insert_text((50, 72), f"PETICAO JUDICIAL PARTE {i}\nNumero Processo: 8000066-08.2026", fontsize=11)
+                pdf_bytes = doc.tobytes()
+                doc.close()
+                z.writestr(f"documento_{i:02d}_peticao.pdf", pdf_bytes)
+
+        t0 = time.perf_counter()
+        success = extract_structured_markitdown(str(zip_path), str(output_md))
+        t_zip = time.perf_counter() - t0
+
+        self.assertTrue(success)
+        self.assertTrue(output_md.exists())
+        self.assertLess(t_zip, 1.0, f"Conversão do ZIP demorou {t_zip:.3f}s (esperado < 1.0s)")
+
+        content = output_md.read_text(encoding="utf-8-sig")
+        self.assertIn("PACOTE COMPACTADO", content)
+        self.assertIn("documento_01_peticao.pdf", content)
+        self.assertIn("PETICAO JUDICIAL PARTE 1", content)
+        print(f"[OK] Teste 05 (ZIP Processo Judicial Multi-PDF): Aprovado em {t_zip*1000:.1f}ms")
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

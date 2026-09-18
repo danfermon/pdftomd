@@ -2,6 +2,8 @@
 
 import os
 import logging
+import zipfile
+import tempfile
 import fitz # PyMuPDF
 from markitdown import MarkItDown
 from docx import Document # python-docx
@@ -88,6 +90,83 @@ def extract_digital_pdf_pymupdf(pdf_path: str, output_md: str) -> bool:
         print(f"Erro na extração PyMuPDF de {pdf_path}: {e}")
         return False
 
+def extract_zip_fast(zip_path: str, output_md: str) -> bool:
+    """
+    Descompacta arquivos ZIP (ex: processos judiciais completos com dezenas de PDFs)
+    e converte cada arquivo interno usando o motor ultra-rápido PyMuPDF para PDFs,
+    evitando a lentidão extrema do MarkItDown em lotes internos de PDFs.
+    """
+    if not os.path.exists(zip_path) or os.path.getsize(zip_path) == 0:
+        return False
+
+    print(f"Iniciando extração otimizada de arquivo compactado (ZIP): {os.path.basename(zip_path)}...")
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        try:
+            with zipfile.ZipFile(zip_path, 'r') as z:
+                z.extractall(temp_dir)
+        except Exception as e:
+            print(f"Erro ao descompactar ZIP {zip_path}: {e}")
+            return False
+
+        extracted_files = []
+        for root, _, files in os.walk(temp_dir):
+            for file in files:
+                # Ignora arquivos de sistema e assinaturas digitais p7s
+                if file.startswith(('.', '~')) or file.lower().endswith(('.p7s', '.crt', '.cer', '.db', '.ini')):
+                    continue
+                extracted_files.append(os.path.join(root, file))
+
+        if not extracted_files:
+            print(f"Aviso: Nenhum arquivo suportado encontrado dentro do ZIP {zip_path}.")
+            return False
+
+        extracted_files.sort()
+        combined_markdown = [f"# PACOTE COMPACTADO (PROCESSO): {os.path.basename(zip_path)}\n\n"]
+        success_count = 0
+
+        for file_path in extracted_files:
+            if os.path.getsize(file_path) == 0:
+                continue
+
+            rel_name = os.path.relpath(file_path, temp_dir)
+            ext = os.path.splitext(file_path)[1].lower()
+            temp_output = file_path + ".temp.md"
+            converted = False
+
+            if ext == '.pdf':
+                if is_digital_pdf(file_path):
+                    converted = extract_digital_pdf_pymupdf(file_path, temp_output)
+            elif ext in ['.docx', '.pptx', '.xlsx', '.xls', '.csv', '.json', '.xml', '.html', '.txt']:
+                try:
+                    md_converter = MarkItDown()
+                    res = md_converter.convert(file_path)
+                    if res and res.text_content:
+                        with open(temp_output, 'w', encoding='utf-8-sig') as f:
+                            f.write(res.text_content)
+                        converted = True
+                except Exception:
+                    converted = False
+
+            if converted and os.path.exists(temp_output):
+                try:
+                    with open(temp_output, 'r', encoding='utf-8-sig', errors='ignore') as f:
+                        content = f.read().strip()
+                    if content:
+                        combined_markdown.append(f"\n\n---\n# ANEXO / DOCUMENTO: {rel_name}\n\n{content}\n")
+                        success_count += 1
+                except Exception:
+                    pass
+
+        if success_count > 0:
+            with open(output_md, 'w', encoding='utf-8-sig') as f:
+                f.write("\n".join(combined_markdown))
+            print(f"Extração do ZIP concluída com sucesso ({success_count} documentos processados): {output_md}")
+            return True
+        else:
+            print(f"Falha ao extrair conteúdo dos arquivos internos do ZIP: {zip_path}")
+            return False
+
 def preprocess_docx_with_pagination(docx_path: str) -> str:
     """
     Lê um arquivo DOCX, detecta quebras de página manuais e insere marcadores '## PÁGINA X'.
@@ -121,6 +200,7 @@ def extract_structured_markitdown(file_path: str, output_md: str) -> bool:
     """
     Extrai o texto e estrutura de qualquer arquivo suportado.
     - PDFs digitais: Roteados diretamente para PyMuPDF (ultra-rápido, segundos em vez de minutos).
+    - ZIPs (processos judiciais): Roteados para extract_zip_fast com PyMuPDF interno.
     - DOCX: Pré-processamento de paginação + MarkItDown.
     - PPTX, XLSX, CSV, EPUB, JSON, HTML: MarkItDown.
     - DOC (Word 97-2003 legado): Tratamento específico e mensagem orientando salvar como .docx.
@@ -142,10 +222,13 @@ def extract_structured_markitdown(file_path: str, output_md: str) -> bool:
             return True
         print("Aviso: Falha no motor primário PyMuPDF. Tentando MarkItDown como fallback...")
 
-    # --- 2. Tratamento para arquivos .doc legados ---
+    # --- 2. Rota Otimizada para Arquivos ZIP (Processos Judiciais / Lotes) ---
+    if file_ext == '.zip':
+        return extract_zip_fast(file_path, output_md)
+
+    # --- 3. Tratamento para arquivos .doc legados ---
     if file_ext == '.doc':
         print(f"Arquivo legado Word 97-2003 (.doc) detectado: {os.path.basename(file_path)}")
-        # Tenta MarkItDown caso haja suporte de plugins
         try:
             md_converter = MarkItDown()
             result = md_converter.convert(file_path)
@@ -159,7 +242,7 @@ def extract_structured_markitdown(file_path: str, output_md: str) -> bool:
             print(f"[DICA] Para arquivos .doc legados, converta-os para .docx antes de processar.")
             return False
 
-    # --- 3. Motor Geral MarkItDown (DOCX, PPTX, XLSX, CSV, etc.) ---
+    # --- 4. Motor Geral MarkItDown (DOCX, PPTX, XLSX, CSV, etc.) ---
     processing_path = file_path
     is_temp_docx = False
 
