@@ -196,7 +196,7 @@ TRANSLATIONS = {
         "dbx_uploading": "⬆️ Fazendo Upload",
         "dbx_upload_error": "Erro no upload de {}",
         "dbx_batch_completed_msg": "✅ Dropbox Batch Concluído! Sucessos: {}. Pulados: {}. Erros: {}.",
-        "pdf_digital_detected": "✅ PDF digital detectado. Usando MarkItDown/Fallback para extração estruturada (Local).",
+        "pdf_digital_detected": "✅ PDF digital detectado. Extração estruturada ultra-rápida (PyMuPDF).",
         "pdf_scanned_detected": "⚠️ PDF escaneado detectado. Tentando OCR local (Tesseract) primeiro.",
         "tesseract_success": "✅ OCR Local (Tesseract) concluído. Verifique a qualidade.",
         "initiating_gemini_ocr": "Iniciando OCR e estruturação via Gemini (custo/nuvem).",
@@ -206,6 +206,9 @@ TRANSLATIONS = {
         "trying_gemini_fallback": "Tentando OCR e estruturação via Gemini (custo/nuvem) as fallback.",
         "pdf_processing_failure": "❌ Não foi possível processar o PDF. Chave Gemini não fornecida para fallback.",
         "markitdown_extraction": "✅ Arquivo {} detectado. Extração estruturada via MarkItDown.",
+        "empty_file_warning": "⚠️ Arquivo '{}' está vazio (0 bytes) e foi descartado.",
+        "doc_legacy_warning": "ℹ️ Arquivo .doc legado detectado. Recomenda-se salvar como .docx se houver falha de conversão.",
+        "doc_not_supported": "❌ Arquivo .doc (Word 97-2003 antigo) não pôde ser convertido. Por favor, salve como .docx.",
         "unsupported_format": "❌ Formato de arquivo '{}' não suportado.",
         "file_not_found": "❌ Arquivo não encontrado no caminho especificado.",
         "saving_local_mode": "💾 Modo Local: Salvando saída na mesma pasta: {}",
@@ -229,27 +232,27 @@ TRANSLATIONS = {
         "forced_change_pwd_title": "🔒 Mandatory Password Change",
         "forced_change_pwd_subtitle": "This is your first access or your password has been reset. For security reasons, you must choose a strong password.",
         "new_pwd": "New Password",
-        "new_pwd_placeholder": "Enter a new password...",
+        "new_pwd_placeholder": "Enter new password...",
         "confirm_pwd": "Confirm New Password",
         "confirm_pwd_placeholder": "Repeat new password...",
         "change_pwd_btn": "Change Password and Sign In",
-        "pwd_blank_error": "New password cannot be blank.",
-        "pwd_min_len_error": "Password must be at least 6 characters long for security.",
-        "pwd_default_error": "New password cannot be the default password '123456'. Set a more secure password.",
-        "pwd_mismatch_error": "The passwords entered do not match. Please try again.",
-        "pwd_change_success": "Password changed successfully! Accessing system...",
+        "pwd_blank_error": "Password cannot be blank.",
+        "pwd_min_len_error": "Password must be at least 6 characters.",
+        "pwd_default_error": "Password cannot be default '123456'.",
+        "pwd_mismatch_error": "Passwords do not match.",
+        "pwd_change_success": "Password changed successfully! Signing in...",
         "system_error_login": "Internal system error. Please try logging in again.",
         "connected_user": "👤 Connected User",
         "role_admin": "🟢 Administrator",
         "role_user": "🔵 Standard User",
         "label_name": "Name",
-        "label_profile": "Profile",
-        "security_alert": "⚠️ **SECURITY ALERT:**\nThe password for the 'admin' user is still the temporary default password ('admin123'). Please change it immediately in the User Management tab!",
+        "label_profile": "Role",
+        "security_alert": "⚠️ **SECURITY ALERT:**\nThe admin password is still the default ('admin123'). Please change it immediately!",
         "navigation": "Navigation",
         "nav_process_docs": "📄 Process Documents",
         "nav_user_mgmt": "👥 User Management",
         "logout_btn": "🚪 Sign Out",
-        "logout_success": "Logged out successfully!",
+        "logout_success": "Signed out!",
         "user_mgmt_title": "👥 User Management",
         "tab_registered_users": "📋 Registered Users",
         "tab_create_user": "➕ Create New User",
@@ -267,19 +270,19 @@ TRANSLATIONS = {
         "confirm_edit_btn": "Confirm Edit",
         "reset_pwd_section_title": "##### Reset Password",
         "reset_pwd_confirm_btn": "Confirm New Password",
-        "delete_user_warning": "Are you sure you want to delete user `{}`? This action cannot be undone.",
+        "delete_user_warning": "Are you sure you want to delete user `{}`? This cannot be undone.",
         "delete_user_yes": "Yes, Delete",
-        "create_user_info": "ℹ️ New users are automatically created with the temporary password **123456** and will be forced to change it on their first access for security reasons.",
-        "new_username_placeholder": "E.g., john.doe",
-        "admin_privileges_checkbox": "Grant Administrator privileges?",
+        "create_user_info": "ℹ️ New users are created with provisional password **123456**.",
+        "new_username_placeholder": "E.g.: john.doe",
+        "admin_privileges_checkbox": "Grant Admin privileges?",
         "create_user_btn": "Register User",
         "process_docs_title": "📄 Document Processor to Markdown",
         "input_data_subheader": "1. Data Input",
         "tab_local_file": "📂 Local File",
-        "tab_batch_folder": "📦 Folder (Batch)",
+        "tab_batch_folder": "📦 Batch Folder",
         "tab_dropbox": "☁️ Dropbox",
         "tab_youtube": "📺 YouTube",
-        "local_tab_headless_info": "ℹ️ Upload a file to convert and generate the Markdown version for download.",
+        "local_tab_headless_info": "ℹ️ Upload a file to convert and download the Markdown version.",
         "local_tab_headless_uploader": "Select a file to convert:",
         "local_tab_info": "ℹ️ Select a file to save the Markdown version in the **same original folder**.",
         "local_tab_select_btn": "📂 Select File",
@@ -287,25 +290,25 @@ TRANSLATIONS = {
         "all_supported": "All Supported",
         "pdf_docs": "PDF Documents",
         "all_files": "All Files",
-        "batch_tab_headless_warning": "⚠️ **Warning:** Local folder processing (Batch) is disabled in server mode (VPS/Docker) as it requires access to the server's file system. To process multiple files in batch on the cloud, use the **Dropbox** tab, which offers safe folder navigation and incremental processing.",
+        "batch_tab_headless_warning": "⚠️ **Notice:** Local folder processing is disabled in server mode (VPS/Docker). Use the **Dropbox** tab for batch processing.",
         "batch_tab_info": "ℹ️ Select a **FOLDER** to convert ALL files contained within it (Recursive).",
         "batch_tab_select_btn": "📂 Select Folder",
         "batch_tab_no_selection": "No folder selected.",
         "semantic_index_title": "📚 Semantic Index (RLM)",
-        "generate_index_local_btn": "🧠 Generate PDF Index of this Folder",
-        "gemini_key_required_error": "⚠️ Configuring the Gemini API Key is required to use RLM.",
+        "generate_index_local_btn": "🧠 Generate PDF Index for this Folder",
+        "gemini_key_required_error": "⚠️ Gemini API Key is required to use RLM.",
         "index_running_spinner": "🧠 Analyzing files and generating index with RLM... (This may take a while)",
-        "index_success": "✅ Index Generated Successfully! {} file(s) indexed. Check the '_INDEX_CONTENT*.pdf' files in the folder.",
-        "index_no_md_warning": "⚠️ No Markdown (.md) files were found to index in this folder. Only files converted to Markdown (.md) can be indexed. Convert your files first in the corresponding tabs!",
-        "dropbox_info": "ℹ️ Navigate through folders and click 'Select This Folder' to convert.",
-        "dropbox_token_expander": "🔑 Configure Dropbox Token (Click to expand)",
-        "dropbox_token_instructions": "**How to obtain a new token:**\n1. Access [dropbox.com/developers/apps](https://www.dropbox.com/developers/apps).\n2. Click on your App (`carroll_rag` or similar).\n3. Go to the **Settings** tab.\n4. Scroll down to the **OAuth 2** section.\n5. Click on the **Generate** button (under *Generated access token*).\n6. Copy the code and paste it below.",
+        "index_success": "✅ Index Generated Successfully! {} file(s) indexed.",
+        "index_no_md_warning": "⚠️ No Markdown (.md) files found in this folder. Convert files first!",
+        "dropbox_info": "ℹ️ Navigate folders and click 'Select This Folder' to convert.",
+        "dropbox_token_expander": "🔑 Configure Dropbox Token",
+        "dropbox_token_instructions": "**How to get a new token:**\n1. Go to [dropbox.com/developers/apps](https://dropbox.com/developers/apps).\n2. Click on your app.\n3. Go to **Settings**.\n4. Scroll to **OAuth 2**.\n5. Click **Generate**.\n6. Copy and paste below.",
         "dropbox_token_placeholder": "Paste your Dropbox Access Token here:",
-        "dropbox_token_updated": "Token updated in session! (Restart app to save in .env permanently)",
-        "dropbox_token_missing": "⚠️ Dropbox Token not found. Please insert it above.",
-        "dropbox_token_invalid": "The current token seems invalid or expired. Use the 'Configure Token' area above to fix it.",
+        "dropbox_token_updated": "Token updated in session!",
+        "dropbox_token_missing": "⚠️ Dropbox Token not found.",
+        "dropbox_token_invalid": "Current token seems invalid or expired.",
         "dropbox_current_folder": "Current Folder",
-        "dropbox_up_level": "⬆️ Go Up One Level",
+        "dropbox_up_level": "⬆️ Up One Level",
         "dropbox_raiz": "Root (/)",
         "dropbox_select_folder_btn": "✅ Select This Folder for Conversion",
         "dropbox_selected_msg": "Folder selected",
@@ -317,11 +320,11 @@ TRANSLATIONS = {
         "dbx_no_md_found": "No Markdown files found to index.",
         "dbx_downloaded_for_analysis": "Downloaded {} files for analysis.",
         "dbx_rlm_processing_spinner": "🧠 RLM processing and generating PDF...",
-        "dbx_index_no_md_warning": "⚠️ No Markdown (.md) files were found to index in this folder. Only files converted to Markdown (.md) can be indexed. Convert your Dropbox files first in the tab above!",
-        "dbx_no_index_generated": "No index generated. (Check logs/MD files)",
-        "dbx_sending_toast": "Uploading",
-        "dbx_index_success": "✅ {} Semantic Indexes successfully generated and uploaded to Dropbox!",
-        "youtube_info": "ℹ️ Transcript saved in folder `markdown_output`.",
+        "dbx_index_no_md_warning": "⚠️ No Markdown (.md) files found in this folder.",
+        "dbx_no_index_generated": "No index generated.",
+        "dbx_sending_toast": "Sending",
+        "dbx_index_success": "✅ {} Semantic Indices generated and uploaded to Dropbox!",
+        "youtube_info": "ℹ️ Transcript saved in `markdown_output`.",
         "youtube_url_placeholder": "Paste a YouTube URL:",
         "ia_config_subheader": "2. AI Configuration (Optional)",
         "use_gemini_checkbox": "Use Artificial Intelligence (Gemini / OpenAI)? (Recommended for poor quality scanned PDFs or complex images)",
@@ -1038,12 +1041,23 @@ if not credentials_valid:
     st.stop()
 
 
-def run_file_pipeline(input_path_str: str, output_path_str: str, gemini_key: str):
+def run_file_pipeline(input_path_str: str, output_path_str: str, gemini_key: str) -> bool:
     """
     Executa o pipeline de conversão (Core Logic).
     Retorna True se sucesso, False caso contrário.
     """
     input_path = Path(input_path_str)
+    
+    # 0. Verificações de Integridade do Arquivo
+    if not input_path.exists():
+        st.error(t("file_not_found"))
+        return False
+
+    if input_path.stat().st_size == 0:
+        st.warning(t("empty_file_warning", input_path.name))
+        print(f"[PULADO] Arquivo vazio (0 bytes): {input_path.name}")
+        return False
+
     file_extension = input_path.suffix.lower()
 
     # --- LÓGICA CORE DE PROCESSAMENTO ---
@@ -1052,7 +1066,8 @@ def run_file_pipeline(input_path_str: str, output_path_str: str, gemini_key: str
         
         if is_digital:
             st.success(t("pdf_digital_detected"))
-            extract_structured_markitdown(input_path_str, output_path_str)
+            success = extract_structured_markitdown(input_path_str, output_path_str)
+            return success and Path(output_path_str).exists()
             
         else:
             st.warning(t("pdf_scanned_detected"))
@@ -1070,6 +1085,7 @@ def run_file_pipeline(input_path_str: str, output_path_str: str, gemini_key: str
                         st.success(t("gemini_processing_success"))
                     else:
                         st.error(t("gemini_processing_failure"))
+                return Path(output_path_str).exists()
             
             elif gemini_key:
                 st.error(t("tesseract_failure"))
@@ -1077,22 +1093,31 @@ def run_file_pipeline(input_path_str: str, output_path_str: str, gemini_key: str
                 success = extract_ocr_to_markdown_gemini(input_path_str, output_path_str, gemini_key)
                 if success:
                     st.success(t("gemini_processing_success"))
+                    return True
                 else:
                     st.error(t("gemini_processing_failure"))
+                    return False
             else:
                 st.error(t("pdf_processing_failure"))
                 return False
                     
-    elif file_extension in ['.docx', '.pptx', '.xlsx', '.doc', '.xls', '.csv', '.json', '.xml', '.html', '.zip', '.mp3', '.wav', '.jpg', '.png', '.epub']:
-        # NOVA LÓGICA: Extração direta via MarkItDown para outros formatos
+    elif file_extension == '.doc':
+        st.info(t("doc_legacy_warning"))
+        success = extract_structured_markitdown(input_path_str, output_path_str)
+        if not success or not Path(output_path_str).exists():
+            st.error(t("doc_not_supported"))
+            return False
         st.success(t("markitdown_extraction").format(file_extension))
-        extract_structured_markitdown(input_path_str, output_path_str) 
+        return True
+
+    elif file_extension in ['.docx', '.pptx', '.xlsx', '.xls', '.csv', '.json', '.xml', '.html', '.zip', '.mp3', '.wav', '.jpg', '.png', '.epub']:
+        st.success(t("markitdown_extraction").format(file_extension))
+        success = extract_structured_markitdown(input_path_str, output_path_str)
+        return success and Path(output_path_str).exists()
         
     else:
         st.error(t("unsupported_format").format(file_extension))
         return False
-
-    return True
 
 def process_local_file(local_path_str, gemini_key):
     """
@@ -1274,7 +1299,8 @@ def process_dropbox_batch(folder_path_str: str, gemini_key: str, overwrite: bool
                                  existing_md_set.add(dropbox_output_path.lower())
                             else:
                                  errors_count += 1
-                                 st.error(t("dbx_upload_error").format(entry.name))
+                                 err_detail = f" — Detalhes: {dbx.last_error}" if hasattr(dbx, 'last_error') and dbx.last_error else ""
+                                 st.error(t("dbx_upload_error").format(entry.name) + err_detail)
                         else:
                             errors_count += 1
                             print(f"[WARN] Conversão finalizada sem gerar o arquivo de saída local {local_output}")

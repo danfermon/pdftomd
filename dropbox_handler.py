@@ -47,6 +47,9 @@ def with_retry(api_func, max_retries=5, initial_delay=2.0):
                 delay *= 2
             else:
                 raise err
+        except AuthError as err:
+            # Erro de autenticação (token inválido ou expirado) não deve ter retry
+            raise err
         except Exception as e:
             if attempt < max_retries - 1:
                 print(f"[DROPBOX NET ERROR] {e}. Tentando novamente ({attempt + 2}/{max_retries}) em {delay}s...")
@@ -238,19 +241,38 @@ class DropboxHandler:
 
     def upload_file(self, local_path, dropbox_path):
         """Faz upload de um arquivo local para o Dropbox (Sobrescrevendo se existir) com retries."""
+        self.last_error = ""
         try:
             if not os.path.exists(local_path):
-                print(f"[WARN] Impossível fazer upload de {dropbox_path}: arquivo local {local_path} não existe.")
+                self.last_error = f"Arquivo local não encontrado: {local_path}"
+                print(f"[WARN] {self.last_error}", flush=True)
                 return False
             with open(local_path, "rb") as f:
                 content = f.read()
+            
+            # Tenta com o cliente atual (self.dbx)
+            try:
                 with_retry(lambda: self.dbx.files_upload(
                     content, 
                     dropbox_path, 
                     mode=WriteMode('overwrite')
                 ))
-            return True
+                return True
+            except Exception as e_primary:
+                # Se houver PathRoot configurado e falhar, tenta fallback com self.base_dbx
+                if self.dbx != self.base_dbx:
+                    try:
+                        with_retry(lambda: self.base_dbx.files_upload(
+                            content, 
+                            dropbox_path, 
+                            mode=WriteMode('overwrite')
+                        ))
+                        return True
+                    except Exception:
+                        pass
+                raise e_primary
         except Exception as e:
-            print(f"Erro ao subir {dropbox_path}: {e}")
+            self.last_error = str(e)
+            print(f"[ERRO UPLOAD DROPBOX] {dropbox_path}: {e}", flush=True)
             return False
 
