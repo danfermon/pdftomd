@@ -98,45 +98,37 @@ O painel será aberto no seu navegador padrão (geralmente `http://localhost:850
 ## 🚀 Guia de Deploy & Referência da VPS
 
 > [!NOTE]
-> Esta seção serve como referência rápida para o desenvolvimento local e o deploy de alterações na VPS.
+> Esta seção serve como referência rápida para o desenvolvimento local e o deploy direto de alterações na VPS via SCP.
 
-### 💻 Ambiente Local (Docker)
-*   **Atenção:** Antes de executar a aplicação localmente utilizando Docker, certifique-se de que o **Docker Desktop** (ou o serviço do Docker) esteja **ativo** e rodando na sua máquina.
-
-### 🌐 Acesso à VPS
-*   **Acesso SSH:**
-    ```bash
-    ssh root@168.231.90.232
-    ```
-*   **Diretório do Sistema na VPS:**
-    ```bash
-    cd /app/pdftomd
-    ```
-
-### 🔄 Fluxo de Deploy (Subir Alterações)
-
-Sempre que realizar atualizações no ambiente **LOCAL** e precisar enviá-las para a **VPS**, siga estes passos simples:
-
-1.  **Gerar o pacote de deploy (Local):**
-    No terminal do seu computador local, execute:
-    ```bash
-    python create_deploy_zip.py
-    ```
-    Isso criará o pacote limpo `pdftomd_clean.zip`.
-
-2.  **Enviar o pacote compactado para a VPS via SCP (Local):**
-    ```bash
-    scp pdftomd_clean.zip root@168.231.90.232:/app/pdftomd/
-    ```
-
-3.  **Descompactar e Reconstruir (Na VPS):**
-    Conecte-se na VPS e execute os comandos para aplicar as alterações:
-    ```bash
-    ssh root@168.231.90.232
-    cd /app/pdftomd
-    unzip -o pdftomd_clean.zip
-    docker-compose up -d --build
-    ```
+### 🌐 Dados de Acesso da VPS
+*   **IP da VPS:** `168.231.90.232`
+*   **Usuário:** `root`
+*   **Diretório do Sistema na VPS:** `/app/pdftomd`
+*   **Diretório Local do Projeto:** `D:\2026_projects\pdftomd`
 
 ---
-*Documentação atualizada de acordo com a versão unificada Multimodal v2.0.*
+
+### 🔄 Fluxo de Deploy Direto (Sem Compactação)
+
+Sempre que realizar atualizações no ambiente **LOCAL** e precisar enviá-las para a **VPS**, execute os passos abaixo:
+
+#### 1. Enviar os arquivos alterados via SCP (Terminal Local - `D:\2026_projects\pdftomd`):
+```bash
+scp app.py pdf_detector.py gcv_ocr.py dropbox_handler.py root@168.231.90.232:/app/pdftomd/
+```
+*(Se houver alteração em outros arquivos como `requirements.txt`, `docker-compose.yml` ou `Dockerfile`, basta incluí-los no comando `scp`)*
+
+#### 2. Conectar na VPS e Reconstruir os Containers (Na VPS):
+```bash
+ssh root@168.231.90.232
+cd /app/pdftomd
+docker compose up -d --build
+```
+
+#### 3. Acompanhar os Logs da Aplicação (Na VPS):
+```bash
+docker compose logs -f pdftomd
+```
+
+---
+*Documentação atualizada com motor PyMuPDF ultra-rápido e resiliência de pipeline.*
