@@ -858,7 +858,7 @@ if 'api_key' not in st.session_state:
     st.session_state['api_key'] = os.getenv("GOOGLE_GEMINI_API_KEY") or os.getenv("OPENAI_API_KEY", "")
 
 if 'dropbox_token' not in st.session_state:
-    st.session_state['dropbox_token'] = os.getenv("DROPBOX_ACCESS_TOKEN", "")
+    st.session_state['dropbox_token'] = os.getenv("DROPBOX_ACCESS_TOKEN") or os.getenv("DROPBOX_REFRESH_TOKEN", "")
 
 if 'processed_file' not in st.session_state:
     st.session_state['processed_file'] = None
@@ -1031,8 +1031,9 @@ dropbox_token_val = st.session_state.get('dropbox_token', '')
 is_gemini_valid = validate_gemini_api_key_cached(api_key_val) if api_key_val else False
 is_dbx_valid = False
 dbx_conn_msg = ""
-if dropbox_token_val:
-    is_dbx_valid, dbx_conn_msg = check_dropbox_connection_cached(dropbox_token_val)
+effective_dbx_token = dropbox_token_val or os.getenv("DROPBOX_REFRESH_TOKEN", "")
+if effective_dbx_token:
+    is_dbx_valid, dbx_conn_msg = check_dropbox_connection_cached(effective_dbx_token)
 
 credentials_valid = is_gemini_valid and is_dbx_valid
 

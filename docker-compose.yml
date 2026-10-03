@@ -20,8 +20,10 @@ services:
       # Carrega chaves das variáveis de ambiente do host se fornecidas
       - GOOGLE_GEMINI_API_KEY=${GOOGLE_GEMINI_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      # MANTIDO VAZIO para governança e segurança (cada usuário informa seu token na sessão)
-      - DROPBOX_ACCESS_TOKEN=
+      - DROPBOX_APP_KEY=${DROPBOX_APP_KEY:-}
+      - DROPBOX_APP_SECRET=${DROPBOX_APP_SECRET:-}
+      - DROPBOX_REFRESH_TOKEN=${DROPBOX_REFRESH_TOKEN:-}
+      - DROPBOX_ACCESS_TOKEN=${DROPBOX_ACCESS_TOKEN:-}
     volumes:
       # Volume nomeado para persistir o banco de dados de usuários de forma segura
       - pdf_user_data:/data

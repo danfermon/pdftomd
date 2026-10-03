@@ -59,8 +59,49 @@ def with_retry(api_func, max_retries=5, initial_delay=2.0):
                 raise e
 
 class DropboxHandler:
-    def __init__(self, access_token):
-        self.base_dbx = dropbox.Dropbox(access_token)
+    def __init__(self, access_token=None, refresh_token=None, app_key=None, app_secret=None):
+        # Lê estritamente das variáveis de ambiente / .env
+        refresh_token = refresh_token or os.environ.get("DROPBOX_REFRESH_TOKEN")
+        app_key = app_key or os.environ.get("DROPBOX_APP_KEY")
+        app_secret = app_secret or os.environ.get("DROPBOX_APP_SECRET")
+
+        # Se foi passado um token que na verdade é um Refresh Token (não começa com 'sl.')
+        if access_token and not access_token.startswith("sl.") and not refresh_token:
+            refresh_token = access_token
+            access_token = None
+
+        if refresh_token:
+            refresh_token = refresh_token.strip().strip('"').strip("'")
+        if app_key:
+            app_key = app_key.strip().strip('"').strip("'")
+        if app_secret:
+            app_secret = app_secret.strip().strip('"').strip("'")
+        if access_token:
+            access_token = access_token.strip().strip('"').strip("'")
+
+        if refresh_token and app_key and app_secret:
+            # Modo PERMANENTE com auto-renovação via SDK oficial
+            self.base_dbx = dropbox.Dropbox(
+                oauth2_refresh_token=refresh_token,
+                app_key=app_key,
+                app_secret=app_secret
+            )
+        elif access_token:
+            self.base_dbx = dropbox.Dropbox(access_token)
+        else:
+            token_env = os.environ.get("DROPBOX_ACCESS_TOKEN")
+            if token_env:
+                if not token_env.startswith("sl.") and app_key and app_secret:
+                    self.base_dbx = dropbox.Dropbox(
+                        oauth2_refresh_token=token_env.strip(),
+                        app_key=app_key.strip(),
+                        app_secret=app_secret.strip()
+                    )
+                else:
+                    self.base_dbx = dropbox.Dropbox(token_env.strip())
+            else:
+                raise ValueError("Nenhuma credencial válida do Dropbox fornecida (access_token ou refresh_token).")
+
         self.dbx = self.base_dbx
         try:
             account = with_retry(lambda: self.base_dbx.users_get_current_account())
