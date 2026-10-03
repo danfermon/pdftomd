@@ -7,23 +7,14 @@ services:
     container_name: pdftomd_app
     ports:
       - "8501:8501"
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 4G
-        reservations:
-          memory: 512M
     environment:
       # Caminho do banco persistente no container
       - USERS_DB_PATH=/data/users.db
       # Carrega chaves das variáveis de ambiente do host se fornecidas
       - GOOGLE_GEMINI_API_KEY=${GOOGLE_GEMINI_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - DROPBOX_APP_KEY=${DROPBOX_APP_KEY:-}
-      - DROPBOX_APP_SECRET=${DROPBOX_APP_SECRET:-}
-      - DROPBOX_REFRESH_TOKEN=${DROPBOX_REFRESH_TOKEN:-}
-      - DROPBOX_ACCESS_TOKEN=${DROPBOX_ACCESS_TOKEN:-}
+      # MANTIDO VAZIO para governança e segurança (cada usuário informa seu token na sessão)
+      - DROPBOX_ACCESS_TOKEN=
     volumes:
       # Volume nomeado para persistir o banco de dados de usuários de forma segura
       - pdf_user_data:/data

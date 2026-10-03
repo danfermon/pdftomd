@@ -1,171 +1,41 @@
 # pdf_detector.py
 
-import os
-import logging
-import zipfile
-import tempfile
 import fitz # PyMuPDF
 from markitdown import MarkItDown
+import os
 from docx import Document # python-docx
 
-# Silenciar warnings verbosos do pdfminer (como FontBBox e descritores fora de padrão)
-logging.getLogger("pdfminer").setLevel(logging.ERROR)
-
-def is_digital_pdf(pdf_path: str, min_text_chars: int = 30, threshold: float = 0.7, max_sample_pages: int = 15) -> bool:
+def is_digital_pdf(pdf_path: str, min_text_chars: int = 30, threshold: float = 0.7) -> bool:
     """
     Verifica se um PDF é predominantemente digital (texto extraível) ou escaneado (imagem).
-    Usa amostragem rápida para documentos grandes (evitando travar em processos de centenas de páginas).
 
     Args:
         pdf_path: Caminho completo para o arquivo PDF.
         min_text_chars: Mínimo de caracteres para uma página ser considerada "com texto".
         threshold: Proporção mínima de páginas com texto para classificar o PDF como digital.
-        max_sample_pages: Número máximo de páginas a inspecionar para decisão rápida.
 
     Returns:
-        True se for digital, False se for escaneado ou vazio.
+        True se for digital, False se for escaneado (imagem).
     """
     try:
-        if not os.path.exists(pdf_path) or os.path.getsize(pdf_path) == 0:
-            return False
-
         doc = fitz.open(pdf_path)
         total_pages = len(doc)
         if total_pages == 0:
-            doc.close()
             return False
 
-        # Amostragem inteligente de páginas para alta performance
-        if total_pages <= max_sample_pages:
-            sample_indices = range(total_pages)
-        else:
-            sample_indices = sorted(list(set(
-                int(i * (total_pages - 1) / (max_sample_pages - 1))
-                for i in range(max_sample_pages)
-            )))
-
         pages_with_text = 0
-        for idx in sample_indices:
-            page = doc[idx]
+        for page in doc:
+            # Extrai texto simples
             text = page.get_text()
             if len(text.strip()) >= min_text_chars:
                 pages_with_text += 1
 
-        doc.close()
-        ratio = pages_with_text / len(sample_indices)
+        ratio = pages_with_text / total_pages
         return ratio >= threshold
 
     except Exception as e:
         print(f"Erro na detecção do PDF {pdf_path}: {e}")
         return False
-
-def extract_digital_pdf_pymupdf(pdf_path: str, output_md: str) -> bool:
-    """
-    Extrai texto de PDF digital de forma ultra-rápida usando PyMuPDF (fitz em C/C++),
-    preservando paginação ('## PÁGINA X') e ordenação espacial.
-    """
-    try:
-        if not os.path.exists(pdf_path) or os.path.getsize(pdf_path) == 0:
-            print(f"[ERRO] Arquivo vazio ou inexistente: {pdf_path}")
-            return False
-
-        print(f"Iniciando extração ultra-rápida (PyMuPDF) de {os.path.basename(pdf_path)}...")
-        doc = fitz.open(pdf_path)
-        total_pages = len(doc)
-
-        with open(output_md, 'w', encoding='utf-8-sig') as f:
-            for i, page in enumerate(doc):
-                # Extrai texto preservando ordem natural de leitura
-                text = page.get_text("text", sort=True)
-                page_header = f"## PÁGINA {i+1}\n\n"
-                if text.strip():
-                    f.write(f"{page_header}{text.strip()}\n\n")
-                else:
-                    f.write(f"{page_header}*(Página sem texto digital identificável)*\n\n")
-
-        doc.close()
-        print(f"Extração ultra-rápida concluída ({total_pages} páginas): {output_md}")
-        return True
-    except Exception as e:
-        print(f"Erro na extração PyMuPDF de {pdf_path}: {e}")
-        return False
-
-def extract_zip_fast(zip_path: str, output_md: str) -> bool:
-    """
-    Descompacta arquivos ZIP (ex: processos judiciais completos com dezenas de PDFs)
-    e converte cada arquivo interno usando o motor ultra-rápido PyMuPDF para PDFs,
-    evitando a lentidão extrema do MarkItDown em lotes internos de PDFs.
-    """
-    if not os.path.exists(zip_path) or os.path.getsize(zip_path) == 0:
-        return False
-
-    print(f"Iniciando extração otimizada de arquivo compactado (ZIP): {os.path.basename(zip_path)}...")
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-        try:
-            with zipfile.ZipFile(zip_path, 'r') as z:
-                z.extractall(temp_dir)
-        except Exception as e:
-            print(f"Erro ao descompactar ZIP {zip_path}: {e}")
-            return False
-
-        extracted_files = []
-        for root, _, files in os.walk(temp_dir):
-            for file in files:
-                # Ignora arquivos de sistema e assinaturas digitais p7s
-                if file.startswith(('.', '~')) or file.lower().endswith(('.p7s', '.crt', '.cer', '.db', '.ini')):
-                    continue
-                extracted_files.append(os.path.join(root, file))
-
-        if not extracted_files:
-            print(f"Aviso: Nenhum arquivo suportado encontrado dentro do ZIP {zip_path}.")
-            return False
-
-        extracted_files.sort()
-        combined_markdown = [f"# PACOTE COMPACTADO (PROCESSO): {os.path.basename(zip_path)}\n\n"]
-        success_count = 0
-
-        for file_path in extracted_files:
-            if os.path.getsize(file_path) == 0:
-                continue
-
-            rel_name = os.path.relpath(file_path, temp_dir)
-            ext = os.path.splitext(file_path)[1].lower()
-            temp_output = file_path + ".temp.md"
-            converted = False
-
-            if ext == '.pdf':
-                if is_digital_pdf(file_path):
-                    converted = extract_digital_pdf_pymupdf(file_path, temp_output)
-            elif ext in ['.docx', '.pptx', '.xlsx', '.xls', '.csv', '.json', '.xml', '.html', '.txt']:
-                try:
-                    md_converter = MarkItDown()
-                    res = md_converter.convert(file_path)
-                    if res and res.text_content:
-                        with open(temp_output, 'w', encoding='utf-8-sig') as f:
-                            f.write(res.text_content)
-                        converted = True
-                except Exception:
-                    converted = False
-
-            if converted and os.path.exists(temp_output):
-                try:
-                    with open(temp_output, 'r', encoding='utf-8-sig', errors='ignore') as f:
-                        content = f.read().strip()
-                    if content:
-                        combined_markdown.append(f"\n\n---\n# ANEXO / DOCUMENTO: {rel_name}\n\n{content}\n")
-                        success_count += 1
-                except Exception:
-                    pass
-
-        if success_count > 0:
-            with open(output_md, 'w', encoding='utf-8-sig') as f:
-                f.write("\n".join(combined_markdown))
-            print(f"Extração do ZIP concluída com sucesso ({success_count} documentos processados): {output_md}")
-            return True
-        else:
-            print(f"Falha ao extrair conteúdo dos arquivos internos do ZIP: {zip_path}")
-            return False
 
 def preprocess_docx_with_pagination(docx_path: str) -> str:
     """
@@ -177,16 +47,24 @@ def preprocess_docx_with_pagination(docx_path: str) -> str:
         page_count = 1
         
         # Inserir marcador da página 1 no início
+        # Verifica se o documento tem parágrafos antes de tentar inserir
         if doc.paragraphs:
             doc.paragraphs[0].insert_paragraph_before(f"## PÁGINA {page_count}")
         else:
+            # Se o documento estiver vazio, adiciona o primeiro parágrafo com o marcador
             doc.add_paragraph(f"## PÁGINA {page_count}")
 
+
         for para in doc.paragraphs:
+            # Check for explicit page breaks within the paragraph's runs
             for run in para.runs:
+                # Check for w:br with type="page" (manual page break)
+                # or w:lastRenderedPageBreak (often indicates a page break)
                 if '<w:br w:type="page"/>' in run._element.xml or '<w:lastRenderedPageBreak/>' in run._element.xml:
                     page_count += 1
+                    # Insert the new page marker before the current paragraph
                     para.insert_paragraph_before(f"\n\n## PÁGINA {page_count}")
+                    # Break from inner loop as we've handled this paragraph's page break
                     break 
         
         temp_path = docx_path.replace(".docx", "_paginated_temp.docx")
@@ -196,62 +74,27 @@ def preprocess_docx_with_pagination(docx_path: str) -> str:
         print(f"Aviso: Falha ao processar paginação do DOCX ({e}). Usando arquivo original.")
         return docx_path
 
-def extract_structured_markitdown(file_path: str, output_md: str) -> bool:
+def extract_structured_markitdown(file_path: str, output_md: str):
     """
-    Extrai o texto e estrutura de qualquer arquivo suportado.
-    - PDFs digitais: Roteados diretamente para PyMuPDF (ultra-rápido, segundos em vez de minutos).
-    - ZIPs (processos judiciais): Roteados para extract_zip_fast com PyMuPDF interno.
-    - DOCX: Pré-processamento de paginação + MarkItDown.
-    - PPTX, XLSX, CSV, EPUB, JSON, HTML: MarkItDown.
-    - DOC (Word 97-2003 legado): Tratamento específico e mensagem orientando salvar como .docx.
+    Extrai o texto de qualquer arquivo suportado (PDF digital, DOCX, XLSX, etc.) 
+    usando MarkItDown para preservar a estrutura.
+    Em caso de falha no PDF, tenta um fallback simples com PyMuPDF.
     """
     if not os.path.exists(file_path):
         print(f"Erro: Arquivo não encontrado em {file_path}")
-        return False
+        return
 
-    if os.path.getsize(file_path) == 0:
-        print(f"[PULADO] Arquivo vazio (0 bytes): {file_path}")
-        return False
-
-    file_ext = os.path.splitext(file_path)[1].lower()
-
-    # --- 1. Rota Ultra-Rápida para PDF Digital (PyMuPDF) ---
-    if file_ext == '.pdf':
-        success = extract_digital_pdf_pymupdf(file_path, output_md)
-        if success:
-            return True
-        print("Aviso: Falha no motor primário PyMuPDF. Tentando MarkItDown como fallback...")
-
-    # --- 2. Rota Otimizada para Arquivos ZIP (Processos Judiciais / Lotes) ---
-    if file_ext == '.zip':
-        return extract_zip_fast(file_path, output_md)
-
-    # --- 3. Tratamento para arquivos .doc legados ---
-    if file_ext == '.doc':
-        print(f"Arquivo legado Word 97-2003 (.doc) detectado: {os.path.basename(file_path)}")
-        try:
-            md_converter = MarkItDown()
-            result = md_converter.convert(file_path)
-            if result and result.text_content:
-                with open(output_md, 'w', encoding='utf-8-sig') as f:
-                    f.write(result.text_content)
-                print(f"Extração (.doc via MarkItDown) concluída: {output_md}")
-                return True
-        except Exception as e:
-            print(f"Erro: Formato .doc legado não suportado diretamente pelo MarkItDown: {e}")
-            print(f"[DICA] Para arquivos .doc legados, converta-os para .docx antes de processar.")
-            return False
-
-    # --- 4. Motor Geral MarkItDown (DOCX, PPTX, XLSX, CSV, etc.) ---
     processing_path = file_path
     is_temp_docx = False
 
-    if file_ext == '.docx':
+    # --- Pré-processamento para DOCX (Paginação) ---
+    if file_path.lower().endswith('.docx'):
         print("Pré-processando DOCX para inserir marcadores de página...")
         processing_path = preprocess_docx_with_pagination(file_path)
         if processing_path != file_path:
             is_temp_docx = True
 
+    # --- Tentativa 1: MarkItDown ---
     try:
         md_converter = MarkItDown()
         print(f"Iniciando conversão estruturada de {os.path.basename(file_path)} para Markdown (MarkItDown)...")
@@ -259,28 +102,39 @@ def extract_structured_markitdown(file_path: str, output_md: str) -> bool:
         result = md_converter.convert(processing_path)
         markdown_content = result.text_content
         
+        # REMOVIDO: A verificação de tabelas estava forçando fallback em documentos de texto puro.
+        # Confiamos no MarkItDown para gerar o texto estruturado corretamente.
+        
+        # Confiamos no MarkItDown para gerar o texto estruturado corretamente.
+        
         with open(output_md, 'w', encoding='utf-8-sig') as f:
             f.write(markdown_content)
         print(f"Extração estruturada (MarkItDown) concluída: {output_md}")
-        return True
         
     except Exception as e:
         print(f"Erro ao usar MarkItDown para extração: {e}")
         
-        # Fallback PyMuPDF caso seja PDF
-        if file_ext == '.pdf':
+        # --- Tentativa 2: Fallback PyMuPDF (Apenas para PDFs) ---
+        if file_path.lower().endswith('.pdf'):
             print("Tentando fallback com PyMuPDF (layout) para PDF...")
-            return extract_digital_pdf_pymupdf(file_path, output_md)
+            try:
+                doc = fitz.open(file_path)
+                with open(output_md, 'w', encoding='utf-8-sig') as f:
+                    for i, page in enumerate(doc):
+                        # Usamos 'text' com o parâmetro 'layout' para tentar preservar o espaçamento
+                        text = page.get_text("text", sort=True) 
+                        f.write(f"\n\n## Página {i+1}\n\n{text.strip()}\n")
+                print(f"Extração digital (Fallback PyMuPDF com layout) concluída: {output_md}")
+            except Exception as e_f:
+                print(f"Falha total na extração digital de PDF: {e_f}")
         else:
-            print(f"Nenhum fallback disponível para formato {file_ext}.")
-            return False
+            print("Nenhum fallback disponível para este tipo de arquivo.")
             
     finally:
+        # Limpeza do arquivo temporário DOCX
         if is_temp_docx and os.path.exists(processing_path):
             try:
                 os.remove(processing_path)
             except Exception as e:
                 print(f"Aviso: Não foi possível remover o arquivo temporário DOCX {processing_path}: {e}")
 
-# Alias para compatibilidade retroativa
-extract_text_digital_markitdown = extract_structured_markitdown
