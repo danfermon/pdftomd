@@ -32,3 +32,6 @@ Thumbs.db
 temp_uploads/
 temp_dropbox/
 markdown_output/
+
+# Zip files
+*.zip
